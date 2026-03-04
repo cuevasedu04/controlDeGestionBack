@@ -194,6 +194,7 @@ async function consultarExpedienteAsunto(postData) {
                 /* documento: JSON.parse(JSON.stringify(result[1][0])), */
                 anexos: JSON.parse(JSON.stringify(result[2])),
                 respuestas: JSON.parse(JSON.stringify(result[3])),
+                mensajes: JSON.parse(JSON.stringify(result[4]))
             }
         }
         return response;
@@ -251,10 +252,14 @@ async function turnarAsunto(postData) {
     let response = {};
     try {
         const sql = `CALL SP_TURNAR_ASUNTO (
-            ?,?,?,?,?
+            ?,?,?,?,?,?
         )`;
 
-        for (const element of postData.listaTurnados) {
+        const listaTurnados = Array.isArray(postData.listaTurnados)
+            ? postData.listaTurnados
+            : [postData];
+
+        for (const element of listaTurnados) {
             if (element.idTurnado) {
                 continue;
             }
@@ -263,7 +268,8 @@ async function turnarAsunto(postData) {
                 element.idUnidadResponsable,
                 element.idInstruccion,
                 element.idUsuarioAsigna,
-                element.idTurnadoPadre || null
+                element.idTurnadoPadre || null,
+                element.mensajeTurnado || element.mensaje || null
             ]);
 
             // Validar respuesta del procedimiento almacenado
@@ -555,6 +561,29 @@ async function editarAsunto(postData) {
     }
 }
 
+async function cancelarAsunto(postData) {
+    let response = {};
+    try {
+
+        const sql = `CALL SP_CANCELAR_ASUNTO (?, ?)`;
+        const result = await db.query(sql, [
+            postData.idAsunto,
+            postData.idUsuarioModifica
+        ]);
+        response = JSON.parse(JSON.stringify(result[0][0]));
+
+        if (response.status == 200) {
+            response.model = JSON.parse(JSON.stringify(result[1][0]));
+        }
+        return response;
+
+    } catch (ex) {
+        throw ex;
+    }
+}
+
+
+
 
 
 
@@ -571,6 +600,7 @@ module.exports = {
     eliminarDocumento,
     concluirAsunto,
     editarAsunto,
+    cancelarAsunto,
     consultarHistorial
 
 }

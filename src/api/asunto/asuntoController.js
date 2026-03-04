@@ -130,6 +130,16 @@ async function consultarHistorial(req, res) {
     }
 }
 
+async function cancelarAsunto(req, res) {
+    try {
+        const postData = req.body;
+            let data = await asuntoDAO.cancelarAsunto(postData);
+            return res.status(200).json(data);
+    } catch (ex) {
+        res.status(500).json(utils.errorGenerico(ex));
+    }
+}
+
 async function descargarExpediente(req, res) {
     try {
         const postData = req.body;
@@ -252,4 +262,5 @@ module.exports = {
     descargarExpediente,
     verDocumento,
     listarDocumentos,
+    cancelarAsunto
 }
