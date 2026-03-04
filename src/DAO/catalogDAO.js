@@ -354,10 +354,11 @@ async function activarDesactivarTipoDocumento(postData) {
 async function verReporte(postData) {
   let response = {};
   try {
-    let sql = `CALL SP_VER_REPORTE(?, ?)`;
+    let sql = `CALL SP_VER_REPORTE(?, ?, ?)`;
     let result = await db.query(sql, [
       postData.fechaInicio || null,
       postData.fechaFin || null,
+      postData.idUnidadResponsable || null,
     ]);
 
     response = JSON.parse(JSON.stringify(result[0][0])); 
