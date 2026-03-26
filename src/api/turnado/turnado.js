@@ -11,7 +11,6 @@ router.post("/consultarDetalleTurnado", token.validateToken, controller.consulta
 router.post("/verTurnado", token.validateToken, controller.verTurnado);
 router.post("/asignarComisionado", token.validateToken, controller.asignarComisionado);
 router.post("/obtenerComisionados", token.validateToken, controller.obtenerComisionados);
-router.post("/consultarAsuntoComisionado", token.validateToken, controller.consultarAsuntoComisionado);
 
 
 module.exports = router;

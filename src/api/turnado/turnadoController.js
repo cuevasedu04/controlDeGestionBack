@@ -88,16 +88,6 @@ async function obtenerComisionados(req, res) {
     }
 }
 
-async function consultarAsuntoComisionado(req, res) {
-    try {
-        const postData = req.body;
-            let data = await turnadoDAO.consultarAsuntoComisionado(postData);
-            return res.status(200).json(data);
-    } catch (ex) {
-        res.status(500).json(utils.errorGenerico(ex));
-    }
-}
-
 
 module.exports = {
     consultarTurnados,
@@ -106,6 +96,5 @@ module.exports = {
     consultarDetalleTurnado,
     verTurnado,
     asignarComisionado,
-    obtenerComisionados,
-    consultarAsuntoComisionado
+    obtenerComisionados
 }
