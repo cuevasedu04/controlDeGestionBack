@@ -188,6 +188,15 @@ async function verReporte(req, res) {
     }
 }
 
+async function generarExcel(req, res) {
+    try{
+        let data = await catalogDAO.generarExcel(req.body);
+        return res.status(200).json(data);
+    }catch (ex){
+        res.status(500).json(utils.errorGenerico(ex));
+    }
+}
+
 async function busquedaAvanzadaTurnados(req, res) {
     try{
         let data = await catalogDAO.busquedaAvanzadaTurnados(req.body);
@@ -222,6 +231,7 @@ module.exports = {
     actualizarTipoDocumento,
     activarDesactivarTipoDocumento,
     verReporte,
+    generarExcel,
     busquedaAvanzadaTurnados
 }
 

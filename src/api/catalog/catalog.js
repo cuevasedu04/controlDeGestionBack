@@ -32,6 +32,7 @@ router.post("/registrarTipoDocumento", token.validateToken, controller.registrar
 router.post("/actualizarTipoDocumento", token.validateToken, controller.actualizarTipoDocumento);
 router.post("/activarTipoDocumento", token.validateToken, controller.activarDesactivarTipoDocumento);
 router.post("/verReporte", token.validateToken, controller.verReporte);
+router.post("/generarExcel", token.validateToken, controller.generarExcel);
 router.post("/busquedaAvanzadaTurnados", token.validateToken, controller.busquedaAvanzadaTurnados);
 
 module.exports = router;

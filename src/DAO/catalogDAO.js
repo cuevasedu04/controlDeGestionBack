@@ -351,6 +351,8 @@ async function activarDesactivarTipoDocumento(postData) {
     }
 }
 
+
+
 async function verReporte(postData) {
   let response = {};
   try {
@@ -375,6 +377,34 @@ async function verReporte(postData) {
         asuntosConUnidades: result[9],
         asuntosPorUnidadRespTotalTurnados: result[10],
         asuntosPorUnidadRespTotalUnidades: result[11],
+      };
+    }
+    return response;
+  } catch (ex) {
+    throw ex;
+  }
+}
+
+async function generarExcel(postData) {
+  let response = {};
+  try {
+    let sql = `CALL SP_GENERAR_EXCEL(?, ?, ?, ?)`;
+    let result = await db.query(sql, [
+      postData.fechaInicio || null,
+      postData.fechaFin || null,
+      postData.idUnidadResponsable || null,
+      postData.idStatusAsunto || null,
+    ]);
+
+    response = JSON.parse(JSON.stringify(result[0][0]));
+    if (response.status === 200) {
+      response.model = {
+        totalAsuntos: result[1],
+        asuntosPorStatus: result[2],
+        detalleAsuntosPorEstatus: result[3],
+        asuntosConcluidos: result[4],
+        tiempoPorTema: result[5],
+        asuntosPorTema: result[6],
       };
     }
     return response;
@@ -446,6 +476,7 @@ module.exports = {
   actualizarTipoDocumento,
   activarDesactivarTipoDocumento,
   verReporte,
+  generarExcel,
   busquedaAvanzadaTurnados,
   consultarCantidadesStatus
 };
