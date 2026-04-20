@@ -208,7 +208,22 @@ async function getUserlog(req, res) {
     } catch (ex) {
         res.status(500).json(utils.errorGenerico(ex));
     }
+    
 }
+async function toggleNotificaciones(req, res) {
+    try {
+        const postData = req.body;
+        if (Object.keys(postData).length !== 0) {
+            let data = await userDAO.toggleNotificaciones(postData);
+            return res.status(200).json(data);
+        } else {
+            res.status(400).json(utils.invalidPostData(postData));
+        }
+    } catch (ex) {
+        res.status(500).json(utils.errorGenerico(ex));
+    }
+}
+
 module.exports = {
     createUser,
     confirmEmail,
@@ -219,7 +234,8 @@ module.exports = {
     updateUser,
     activateUser,
     getUsuariosAdmin,
-    getUserlog
+    getUserlog,
+    toggleNotificaciones
 }
 
 function getClientIp(req) {

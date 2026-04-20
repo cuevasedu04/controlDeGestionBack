@@ -230,6 +230,21 @@ async function getUserlog(postData){
 
 }
 
+async function toggleNotificaciones(postData) {
+    try {
+        const sql = `CALL SP_TOGGLE_NOTIFICACIONES(?)`;
+        const result = await db.query(sql, [postData.idUsuario]);
+
+        let response = JSON.parse(JSON.stringify(result[0][0]));
+        if (response.status == 200) {
+            response.model = JSON.parse(JSON.stringify(result[1][0]));
+        }
+        return response;
+    } catch (ex) {
+        throw ex;
+    }
+}
+
 module.exports = {
     createUser,
     confirmEmail,
@@ -240,6 +255,6 @@ module.exports = {
     updateUser,
     activateUser,
     getUsuariosAdmin,
-    getUserlog
-
+    getUserlog,
+    toggleNotificaciones
 }

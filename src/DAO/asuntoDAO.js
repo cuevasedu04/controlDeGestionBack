@@ -1,6 +1,7 @@
 const db = require("../config/database");
 const utils = require("../api/utils/utils");
 const path = require("path");
+const email = require("../api/utils/email");
 
 async function registrarAsunto(postData) {
     let response = {};
@@ -276,6 +277,10 @@ async function turnarAsunto(postData) {
             if (result[0]?.[0]?.status == 200) {
                 response = { ...result[0][0] };
 
+                const { correos, folio, noOficio, responsables, tema, prioridad, descripcion } = result[0][0];
+                if (correos) {
+                    email.enviarNotificacionTurnado({ correos, folio, noOficio, responsables, tema, prioridad, descripcion });
+                }
             } else {
                 response = { status: 500, message: 'Error en la ejecución del procedimiento almacenado.' };
                 return;
@@ -283,7 +288,7 @@ async function turnarAsunto(postData) {
         }
         return response;
     } catch (ex) {
-        console.error("Error en turnarAsunto:", ex); // ← Esto es importante para entender qué falla
+        console.error("Error en turnarAsunto:", ex);
         return {
             status: -1,
             message: "Ocurrió un error interno, contactar a soporte técnico.",

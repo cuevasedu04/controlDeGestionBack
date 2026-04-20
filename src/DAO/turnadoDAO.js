@@ -1,6 +1,7 @@
 const db = require("../config/database");
 const utils = require("../api/utils/utils");
 const path = require("path");
+const email = require("../api/utils/email");
 
 
 
@@ -164,6 +165,18 @@ async function asignarComisionado(postData) {
             postData.idUsuarioComisionado
         ]);
         response = JSON.parse(JSON.stringify(result[0][0]));
+
+        if (response.status == 200 && response.correos) {
+            email.enviarNotificacionComisionado({
+                correos: response.correos,
+                folio: response.folio,
+                noOficio: response.noOficio,
+                comisionados: response.comisionados,
+                tema: response.tema,
+                prioridad: response.prioridad,
+                descripcion: response.descripcion
+            });
+        }
 
         return response;
     } catch (ex) {

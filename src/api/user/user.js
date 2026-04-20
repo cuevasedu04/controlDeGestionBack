@@ -83,6 +83,7 @@ Model:{}
 
 router.post("/activarUsuario", token.validateToken, controller.activateUser)
 router.post("/getUserlog", token.validateToken, controller.getUserlog)
+router.post("/toggleNotificaciones", token.validateToken, controller.toggleNotificaciones)
 
 
 /**
