@@ -10,9 +10,12 @@ async function logIn(postData) {
         console.log(cryptPassw);
         
         response = JSON.parse(JSON.stringify(result[0][0]));
-        
+
         if(response.status == 200){
             response.model = JSON.parse(JSON.stringify(result[1][0]));
+            const versionActual = process.env.VERSION_ACTUAL_SISTEMA || '';
+            response.model.versionActualSistema = versionActual;
+            response.model.mostrarModalVersion = response.model.versionSistema !== versionActual;
         }
         return response;
     } catch (ex) {
@@ -230,6 +233,16 @@ async function getUserlog(postData){
 
 }
 
+async function actualizarVersionVista(postData) {
+    try {
+        const sql = `CALL SP_ACTUALIZAR_VERSION_VISTA(?, ?)`;
+        const result = await db.query(sql, [postData.idUsuario, postData.versionNueva]);
+        return JSON.parse(JSON.stringify(result[0][0]));
+    } catch (ex) {
+        throw ex;
+    }
+}
+
 async function toggleNotificaciones(postData) {
     try {
         const sql = `CALL SP_TOGGLE_NOTIFICACIONES(?)`;
@@ -256,5 +269,6 @@ module.exports = {
     activateUser,
     getUsuariosAdmin,
     getUserlog,
-    toggleNotificaciones
+    toggleNotificaciones,
+    actualizarVersionVista
 }
