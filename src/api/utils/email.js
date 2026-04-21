@@ -328,16 +328,32 @@ function bodyNotificacionTurnado(data) {
             <td align="center">
                 <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.12);">
 
+                    <!-- Header top border -->
+                    <tr>
+                        <td style="background-color:#611232;height:7px;font-size:0;line-height:0;">&nbsp;</td>
+                    </tr>
+
                     <!-- Header -->
                     <tr>
-                        <td style="background:linear-gradient(135deg,#4B0E27 0%,#611232 100%);padding:28px 36px;">
-                            <p style="margin:0;color:#ffffff;font-size:20px;font-weight:700;letter-spacing:0.5px;">Sistema de Control de Gestión</p>
+                        <td style="background-color:#ffffff;padding:24px 36px 20px;text-align:center;border-bottom:1px solid #f0f0f0;">
+                            <!-- Monograma SCG -->
+                            <table cellpadding="0" cellspacing="0" style="margin:0 auto 14px;">
+                                <tr>
+                                    <td style="background-color:#611232;border-radius:4px;padding:6px 16px;">
+                                        <span style="font-family:'Segoe UI',Arial,sans-serif;font-size:13px;font-weight:700;color:#ffffff;letter-spacing:4px;text-transform:uppercase;">SCG</span>
+                                    </td>
+                                </tr>
+                            </table>
+                            <!-- Título principal -->
+                            <p style="margin:0 0 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:22px;font-weight:700;color:#1a1a1a;letter-spacing:0.3px;">Sistema de Control de Gestión</p>
+                            <!-- Subtítulo -->
+                            <p style="margin:0;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#888888;letter-spacing:1.2px;text-transform:uppercase;">Subdirección de Control de Gestión &nbsp;·&nbsp; ANAM</p>
                         </td>
                     </tr>
 
                     <!-- Accent bar -->
                     <tr>
-                        <td style="background-color:#c8a415;height:4px;"></td>
+                        <td style="background-color:#c8a415;height:3px;font-size:0;line-height:0;">&nbsp;</td>
                     </tr>
 
                     <!-- Body -->
@@ -378,7 +394,7 @@ function bodyNotificacionTurnado(data) {
 
                         
                             <p style="margin:0 0 24px;color:#444444;font-size:15px;line-height:1.6;">
-                                Para revisar el asunto asignado, ingrese al
+                                Para responder el asunto asignado, por favor ingrese al
                                 <a href="http://89.116.51.124:8010/auth/login" style="color:#611232;font-weight:600;text-decoration:none;">Sistema de Control de Gestión</a>.
                             </p>
 
@@ -454,16 +470,32 @@ function bodyNotificacionComisionado(data) {
             <td align="center">
                 <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.12);">
 
+                    <!-- Header top border -->
+                    <tr>
+                        <td style="background-color:#611232;height:7px;font-size:0;line-height:0;">&nbsp;</td>
+                    </tr>
+
                     <!-- Header -->
                     <tr>
-                        <td style="background:linear-gradient(135deg,#4B0E27 0%,#611232 100%);padding:28px 36px;">
-                            <p style="margin:0;color:#ffffff;font-size:20px;font-weight:700;letter-spacing:0.5px;">Sistema de Control de Gestión</p>
+                        <td style="background-color:#ffffff;padding:24px 36px 20px;text-align:center;border-bottom:1px solid #f0f0f0;">
+                            <!-- Monograma SCG -->
+                            <table cellpadding="0" cellspacing="0" style="margin:0 auto 14px;">
+                                <tr>
+                                    <td style="background-color:#611232;border-radius:4px;padding:6px 16px;">
+                                        <span style="font-family:'Segoe UI',Arial,sans-serif;font-size:13px;font-weight:700;color:#ffffff;letter-spacing:4px;text-transform:uppercase;">SCG</span>
+                                    </td>
+                                </tr>
+                            </table>
+                            <!-- Título principal -->
+                            <p style="margin:0 0 4px;font-family:'Segoe UI',Arial,sans-serif;font-size:22px;font-weight:700;color:#1a1a1a;letter-spacing:0.3px;">Sistema de Control de Gestión</p>
+                            <!-- Subtítulo -->
+                            <p style="margin:0;font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#888888;letter-spacing:1.2px;text-transform:uppercase;">Subdirección de Control de Gestión &nbsp;·&nbsp; ANAM</p>
                         </td>
                     </tr>
 
                     <!-- Accent bar -->
                     <tr>
-                        <td style="background-color:#c8a415;height:4px;"></td>
+                        <td style="background-color:#c8a415;height:3px;font-size:0;line-height:0;">&nbsp;</td>
                     </tr>
 
                     <!-- Body -->
@@ -503,7 +535,7 @@ function bodyNotificacionComisionado(data) {
                             </table>
 
                             <p style="margin:0 0 24px;color:#444444;font-size:15px;line-height:1.6;">
-                                Para revisar el asunto asignado, ingrese al
+                                Para responder el asunto asignado, por favor ingrese al
                                 <a href="http://89.116.51.124:8010/auth/login" style="color:#611232;font-weight:600;text-decoration:none;">Sistema de Control de Gestión</a>.
                             </p>
 
