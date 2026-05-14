@@ -2,6 +2,7 @@ const db = require("../config/database");
 const utils = require("../api/utils/utils");
 const path = require("path");
 const email = require("../api/utils/email");
+const winston = require("../config/winston");
 
 
 
@@ -91,6 +92,15 @@ async function verTurnado(postData) {
 async function contestarTurnado(postData) {
     let response = {};
     try {
+        if (!postData.folio || postData.folio === 'undefined') {
+            winston.error(`contestarTurnado - folio inválido: "${postData.folio}" | idTurnado: ${postData.idTurnado} | idUsuario: ${postData.idUsuario}`);
+            return { status: 400, message: 'No se pudo identificar el folio del asunto. Recarga la página e intenta de nuevo.' };
+        }
+        if (!postData.idTurnado) {
+            winston.error(`contestarTurnado - idTurnado inválido | folio: ${postData.folio} | idUsuario: ${postData.idUsuario}`);
+            return { status: 400, message: 'Identificador de turnado inválido.' };
+        }
+
         const directorioTurnados = path.resolve(`./src/documentos/Asuntos/Asunto-${postData.folio}/Turnado-${postData.idTurnado}`);
         utils.ensureDirectoryExistsSync(directorioTurnados);
         const directoryBdTurnados = `documentos/Asuntos/Asunto-${postData.folio}/Turnado-${postData.idTurnado}`;
@@ -146,6 +156,7 @@ async function contestarTurnado(postData) {
         return response;
 
     } catch (ex) {
+        winston.error(`contestarTurnado - Excepción: ${ex.message || ex} | folio: ${postData.folio} | idTurnado: ${postData.idTurnado} | idUsuario: ${postData.idUsuario}`);
         throw ex;
     }
 }

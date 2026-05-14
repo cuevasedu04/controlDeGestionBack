@@ -5,6 +5,7 @@
 
 # Env
 development.env
+production.env
 
 # Node artifact files
 node_modules/

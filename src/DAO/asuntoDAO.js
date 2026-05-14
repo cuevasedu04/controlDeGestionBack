@@ -2,11 +2,31 @@ const db = require("../config/database");
 const utils = require("../api/utils/utils");
 const path = require("path");
 const email = require("../api/utils/email");
+const winston = require("../config/winston");
+
+function sanitizarFecha(valor) {
+    if (valor === null || valor === undefined || valor === '') return null;
+    if (typeof valor === 'string' && /^00\d{2}-/.test(valor)) {
+        valor = '20' + valor.slice(2);
+    }
+    return valor;
+}
 
 async function registrarAsunto(postData) {
     let response = {};
-    let resultFileBD3 = null; // Asegurada declaración anticipada
+    let resultFileBD3 = null;
     try {
+        // Validación mínima antes de llamar al SP
+        if (!postData.idUsuarioRegistra) {
+            winston.warn(`registrarAsunto - Intento con idUsuarioRegistra nulo | noOficio: ${postData.noOficio}`);
+            return { status: 400, message: 'Sesión de usuario no válida. Por favor recarga la página e intenta de nuevo.' };
+        }
+
+        // Sanitizar fechas — convierte '' a null y corrige año 00XX→20XX
+        const fechaDocumento   = sanitizarFecha(postData.fechaDocumento);
+        const fechaRecepcion   = sanitizarFecha(postData.fechaRecepcion);
+        const fechaCumplimiento = sanitizarFecha(postData.fechaCumplimiento);
+
         const sql = `CALL SP_REGISTRAR_ASUNTO (
             ?,?,?,?,?,?,
             ?,?,?,?,?,?,
@@ -17,12 +37,12 @@ async function registrarAsunto(postData) {
         const result = await db.query(sql, [
             postData.idTipoDocumento,
             postData.noOficio,
-            postData.esVolante,
-            postData.numeroVolante,
-            postData.esGuia,
-            postData.numeroGuia,
-            postData.fechaDocumento,
-            postData.fechaRecepcion,
+            postData.esVolante   ? 1 : 0,
+            postData.numeroVolante  || null,
+            postData.esGuia      ? 1 : 0,
+            postData.numeroGuia  || null,
+            fechaDocumento,
+            fechaRecepcion,
             postData.remitenteNombre,
             postData.remitenteCargo,
             postData.remitenteDependencia,
@@ -31,18 +51,16 @@ async function registrarAsunto(postData) {
             postData.dirigidoADependencia,
             postData.descripcionAsunto,
             postData.idTema,
-            postData.fechaCumplimiento,
+            fechaCumplimiento,
             postData.idMedio,
             postData.idPrioridad,
             postData.idUsuarioRegistra,
             postData.usuarioRegistra,
             postData.idUnidadAdministrativa,
             postData.unidadAdministrativa,
-            postData.observaciones
+            postData.observaciones || null
         ]);
 
-        // Validar respuesta del procedimiento almacenado
-        console.log(result);
         if (result[0]?.[0]?.status == 200) {
 
             response = { ...result[0][0] };
@@ -117,19 +135,19 @@ async function registrarAsunto(postData) {
 				} */
             }
         } else {
-            response = { status: result[0]?.[0]?.status, message: result[0]?.[0]?.message };
+            const spStatus  = result[0]?.[0]?.status;
+            const spMessage = result[0]?.[0]?.message;
+            winston.warn(`registrarAsunto - SP retornó error: status=${spStatus} | message=${spMessage} | noOficio=${postData.noOficio} | idUsuarioRegistra=${postData.idUsuarioRegistra}`);
+            response = { status: spStatus, message: spMessage };
         }
 
         return response;
     } catch (ex) {
-        console.error("Error en registrarAsunto:", ex);
+        winston.error(`registrarAsunto - Excepción JS: ${ex.message || ex} | noOficio=${postData.noOficio} | idUsuarioRegistra=${postData.idUsuarioRegistra} | stack=${ex.stack || ''}`);
         return {
             status: -1,
             message: "Ocurrió un error interno, contactar a soporte técnico.",
-            error: {
-                level: "error",
-                timestamp: new Date().toISOString()
-            }
+            error: { level: "error", timestamp: new Date().toISOString() }
         };
     }
 }

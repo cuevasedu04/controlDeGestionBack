@@ -5,18 +5,24 @@ const csv = require("../utils/csv");
 const path = require('path');
 const fs = require('fs');
 const Archiver = require("archiver");
+const winston = require("../../config/winston");
 
 async function registrarAsunto(req, res) {
     try {
-        
         const postData = req.body;
         if (Object.keys(postData).length !== 0) {
             let data = await asuntoDAO.registrarAsunto(postData);
+            if (data.status !== 200) {
+                const user = req.userToken ? `${req.userToken.idUsuario} - ${req.userToken.nombreCompleto}` : 'desconocido';
+                winston.warn(`[Controller] registrarAsunto fallido: status=${data.status} | msg="${data.message}" | noOficio="${postData.noOficio}" | usuario=${user}`);
+            }
             return res.status(200).json(data);
         } else {
             res.status(400).json(utils.postDataInvalido(postData));
         }
     } catch (ex) {
+        const user = req.userToken ? `${req.userToken.idUsuario} - ${req.userToken.nombreCompleto}` : 'desconocido';
+        winston.error(`[Controller] registrarAsunto excepción: ${ex.message} | usuario=${user}`);
         res.status(500).json(utils.errorGenerico(ex));
     }
 }

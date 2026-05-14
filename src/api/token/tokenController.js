@@ -26,7 +26,7 @@ async function generateToken(req, res) {
 }
 
 function validateToken(request, response, next) {
-    return next();
+    // return next();
     var token = request.headers['authorization'];
     var result = { estatus: -1, mensaje: " " };
 
