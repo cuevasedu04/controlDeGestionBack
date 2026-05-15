@@ -8,17 +8,17 @@ async function generateToken(req, res) {
     let user = "api-cdcsp-ws";
     let pass = "Abcde1";
 
-    try {        
-            var tokenData = {
-                user: user,
-                pass: pass
-            }
-            var token = jwt.sign(tokenData, jwtClave, {
-                expiresIn: jwtTimeToken
-            })
-            res.status(200).json({ status: 200, token: token, message: "Successfully generated token" });
-            
-        
+    try {
+        var tokenData = {
+            user: user,
+            pass: pass
+        }
+        var token = jwt.sign(tokenData, jwtClave, {
+            expiresIn: jwtTimeToken
+        })
+        res.status(200).json({ status: 200, token: token, message: "Successfully generated token" });
+
+
     }
     catch (err) {
         res.status(500).json({ status: 500, message: "Internal server error" });
@@ -27,6 +27,28 @@ async function generateToken(req, res) {
 
 function validateToken(request, response, next) {
     // return next();
+
+    const ALLOWED_CONTROL_PLAZAS_ENDPOINTS = [
+        "/busqueda-avanzada",
+        "/consultarExpedienteAsunto",
+        "/verDocumento"
+    ]
+
+    const CONTROL_PLAZAS_ORIGINS = [
+        "http://localhost:3000",
+    ]
+
+    const origin = request.headers['origin'] || request.headers['referer'];
+    const endpoint = request.url;
+
+    const isControlPlazasEndpoint = ALLOWED_CONTROL_PLAZAS_ENDPOINTS.some(ep => endpoint.includes(ep));
+    const isControlPlazasOrigin = CONTROL_PLAZAS_ORIGINS.some(o => origin && origin.includes(o));
+
+    if (isControlPlazasEndpoint && isControlPlazasOrigin) {
+        winston.info(`Acceso permitido a ${endpoint} desde origen: ${origin} sin validación de token.`);        
+        return next();
+    }
+
     var token = request.headers['authorization'];
     var result = { estatus: -1, mensaje: " " };
 
@@ -45,9 +67,9 @@ function validateToken(request, response, next) {
         if (err) {
             if (err.name === 'TokenExpiredError') {
                 winston.warn(`ERR 401: Intento de acceso con token expirado.`);
-                return response.status(401).json({ 
-                    estatus: -1, 
-                    mensaje: "Token expirado" 
+                return response.status(401).json({
+                    estatus: -1,
+                    mensaje: "Token expirado"
                 });
             }
             winston.warn(`ERR 403: Intento de acceso con token inválido.`);
@@ -55,14 +77,14 @@ function validateToken(request, response, next) {
                 estatus: -1,
                 mensaje: "Token inválido"
             });
-        } 
+        }
 
         request.userToken = user; // Datos completos
 
         // LOG automático en cada petición
         winston.info(`- idUsuario: ${user.idUsuario} - ${user.nombreCompleto} - idToken: ${token.slice(-16)} - Acción: ${request.url}`);
 
-        next(); 
+        next();
     });
 }
 
@@ -77,7 +99,7 @@ function generateTokenByUser(user) {
         throw err;
     }
 }
-        //desencriptar el token
+//desencriptar el token
 function decryptToken(authHeader) {
     try {
         if (!authHeader || !authHeader.includes("Bearer-UG")) {
