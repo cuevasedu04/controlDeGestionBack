@@ -29,7 +29,7 @@ function validateToken(request, response, next) {
     // return next();
 
     const ALLOWED_CONTROL_PLAZAS_ENDPOINTS = [
-        "/busqueda-avanzada",
+        "/busquedaAvanzadaTurnados",
         "/consultarExpedienteAsunto",
         "/verDocumento"
     ]
@@ -39,10 +39,14 @@ function validateToken(request, response, next) {
     ]
 
     const origin = request.headers['origin'] || request.headers['referer'];
-    const endpoint = request.url;
+    const endpoint = request.url;    
 
     const isControlPlazasEndpoint = ALLOWED_CONTROL_PLAZAS_ENDPOINTS.some(ep => endpoint.includes(ep));
     const isControlPlazasOrigin = CONTROL_PLAZAS_ORIGINS.some(o => origin && origin.includes(o));
+
+    winston.info(`isControlPlazasEndpoint: ${isControlPlazasEndpoint}, isControlPlazasOrigin: ${isControlPlazasOrigin}`);
+
+    winston.info(`Solicitud a ${endpoint} desde origen: ${origin}`);        
 
     if (isControlPlazasEndpoint && isControlPlazasOrigin) {
         winston.info(`Acceso permitido a ${endpoint} desde origen: ${origin} sin validación de token.`);        
