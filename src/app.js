@@ -82,6 +82,7 @@ app.use("/catalogo", require("./api/catalog/catalog"));
 app.use("/user", require("./api/user/user"));
 app.use("/asunto", require("./api/asunto/asunto"));
 app.use("/turnado", require("./api/turnado/turnado"));
+app.use("/acuerdo", require("./api/acuerdo/acuerdo"));
 
 
 /**

@@ -160,10 +160,10 @@ async function consultarAsuntosUR(postData) {
     try {
 
         let sql = `CALL SP_CONSULTAR_ASUNTOS_REGISTRADOS_UR (
-            ?
+            ?,?
         )`;
 
-        let result = await db.query(sql, [postData.idUnidadAdministrativa || 0]);
+        let result = await db.query(sql, [postData.idUnidadAdministrativa || 0, postData.soloRegistrados ?? 1]);
         response = JSON.parse(JSON.stringify(result[0][0]));
 
         if (response.status == 200) {

@@ -36,6 +36,7 @@ function validateToken(request, response, next) {
 
     const CONTROL_PLAZAS_ORIGINS = [
         "http://localhost:3000",
+        "http://89.116.51.124:3030"
     ]
 
     const origin = request.headers['origin'] || request.headers['referer'];
