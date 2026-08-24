@@ -241,6 +241,18 @@ async function consultarTurnados(postData) {
         throw ex;
     }
 }
+// Devuelve el conjunto de idTurnado (entre idAsuntos dados) que pertenecen a idUnidadResponsable.
+// Se usa para filtrar, al descargar el expediente en zip, las subcarpetas "Turnado-{idTurnado}"
+// que no correspondan al área del usuario que descarga.
+async function obtenerIdTurnadosPermitidos(idAsuntos, idUnidadResponsable) {
+    if (!Array.isArray(idAsuntos) || idAsuntos.length === 0 || !idUnidadResponsable) {
+        return [];
+    }
+    const sql = `SELECT idTurnado FROM scg_tbl_turnado WHERE idAsunto IN (?) AND idUnidadResponsable = ? AND activo = 1`;
+    const result = await db.query(sql, [idAsuntos, idUnidadResponsable]);
+    return result.map((r) => r.idTurnado);
+}
+
 async function consultarHistorial(postData) {
     let response = {};
     try {
@@ -624,7 +636,8 @@ module.exports = {
     concluirAsunto,
     editarAsunto,
     cancelarAsunto,
-    consultarHistorial
+    consultarHistorial,
+    obtenerIdTurnadosPermitidos
 
 }
 async function almacenaListaArchivos(list, directorioAnexos, directoryBd, idUsuarioRegistra, idAsunto) {

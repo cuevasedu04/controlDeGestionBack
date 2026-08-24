@@ -117,7 +117,10 @@ if (config.NODE_ENV == config.ENUM_NODE_ENV.Development) {
 
 
 if (config.NODE_ENV == config.ENUM_NODE_ENV.Production) {
-    
+    app.listen(app.get("port"), () => {
+        console.log("Starting HTTP server on: ", app.get("port"));
+    });
+
     /*/https */
     /* var httpsServer = https.createServer(configHTTPS, app);
 

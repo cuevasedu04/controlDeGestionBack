@@ -155,6 +155,19 @@ async function descargarExpediente(req, res) {
 
             if (fs.existsSync(path_)) {
                 postData.path = path_;
+
+                // Solo se incluyen las subcarpetas "Turnado-{idTurnado}" que pertenezcan
+                // a la unidad responsable del usuario que descarga (fail-closed si falta el dato).
+                if (postData.idAsunto && postData.idUnidadResponsable) {
+                    const idTurnadosPermitidos = await asuntoDAO.obtenerIdTurnadosPermitidos(
+                        [postData.idAsunto],
+                        postData.idUnidadResponsable
+                    );
+                    postData.idTurnadosPermitidos = new Set(idTurnadosPermitidos);
+                } else {
+                    postData.idTurnadosPermitidos = new Set();
+                }
+
                 utils.generarZip(postData, res);
             } else {
                 return utils.zipVacio(res);
@@ -162,6 +175,90 @@ async function descargarExpediente(req, res) {
         } else {
             res.status(400).json(utils.postDataInvalido(postData));
         }
+    } catch (ex) {
+        res.status(500).json(utils.errorGenerico(ex));
+    }
+}
+
+// Reemplaza caracteres no válidos para nombres de carpeta/archivo en Windows y recorta longitud
+function sanitizarNombreCarpeta(nombre) {
+    if (!nombre) return '';
+    return nombre
+        .toString()
+        .replace(/[\\/:*?"<>|]/g, '-')
+        .replace(/[\x00-\x1F]/g, '')
+        .trim()
+        .replace(/\.+$/, '')
+        .slice(0, 150);
+}
+
+async function descargarExpedientesMasivo(req, res) {
+    try {
+        const postData = req.body;
+
+        // Solo el folio se usa para localizar la carpeta en disco (no cambia).
+        // noOficio es únicamente para el nombre visible dentro del ZIP. idAsunto se usa
+        // para saber qué turnados (subcarpetas) pertenecen a la unidad del usuario.
+        const mapaAsuntos = new Map();
+        (Array.isArray(postData.asuntos) ? postData.asuntos : []).forEach((a) => {
+            if (a && a.folio && !mapaAsuntos.has(a.folio)) {
+                mapaAsuntos.set(a.folio, { noOficio: a.noOficio || '', idAsunto: a.idAsunto || null });
+            }
+        });
+
+        if (mapaAsuntos.size === 0) {
+            return res.status(400).json(utils.postDataInvalido(postData));
+        }
+
+        const idAsuntos = [...mapaAsuntos.values()].map((a) => a.idAsunto).filter(Boolean);
+        let idTurnadosPermitidos = new Set();
+        if (idAsuntos.length > 0 && postData.idUnidadResponsable) {
+            const permitidos = await asuntoDAO.obtenerIdTurnadosPermitidos(idAsuntos, postData.idUnidadResponsable);
+            idTurnadosPermitidos = new Set(permitidos);
+        }
+
+        const nombresUsados = new Set();
+        const nombreUnico = (base) => {
+            let nombre = base;
+            let contador = 2;
+            while (nombresUsados.has(nombre.toLowerCase())) {
+                nombre = `${base} (${contador})`;
+                contador++;
+            }
+            nombresUsados.add(nombre.toLowerCase());
+            return nombre;
+        };
+
+        const carpetasEncontradas = [];
+        mapaAsuntos.forEach(({ noOficio }, folio) => {
+            const path_ = path.resolve(`./src/documentos/Asuntos/Asunto-${folio}`);
+            if (fs.existsSync(path_)) {
+                const nombreBase = sanitizarNombreCarpeta(noOficio) || `Asunto-${folio}`;
+                carpetasEncontradas.push({ path: path_, nombreZip: nombreUnico(nombreBase) });
+            }
+        });
+
+        if (carpetasEncontradas.length === 0) {
+            return utils.zipVacio(res);
+        }
+
+        const fecha = new Date().toISOString().slice(0, 10);
+        res.writeHead(200, {
+            'Content-Type': 'application/zip',
+            'Content-disposition': `attachment; filename=Expedientes-${fecha}.zip`
+        });
+
+        const zip = Archiver('zip', { zlib: { level: 9 } });
+        zip.on('error', (err) => {
+            winston.error(`[Controller] descargarExpedientesMasivo error de archivo: ${err.message}`);
+            res.status(500).end();
+        });
+
+        zip.pipe(res);
+        carpetasEncontradas.forEach(({ path: path_, nombreZip }) => {
+            utils.agregarCarpetaAsuntoFiltrada(zip, path_, nombreZip, idTurnadosPermitidos);
+        });
+        zip.finalize();
     } catch (ex) {
         res.status(500).json(utils.errorGenerico(ex));
     }
@@ -266,6 +363,7 @@ module.exports = {
     editarAsunto,
     consultarHistorial,
     descargarExpediente,
+    descargarExpedientesMasivo,
     verDocumento,
     listarDocumentos,
     cancelarAsunto

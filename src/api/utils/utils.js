@@ -331,6 +331,32 @@ function ensureDirectoryExistsSync(directory) {
     }
 }
 
+// Agrega el contenido de una carpeta de asunto al zip. Las subcarpetas "Turnado-{idTurnado}"
+// solo se incluyen si idTurnado está en idTurnadosPermitidos (Set); el resto del contenido
+// (oficio principal, Anexos, etc.) se agrega sin filtrar. Si idTurnadosPermitidos es null,
+// no se filtra nada (comportamiento previo).
+function agregarCarpetaAsuntoFiltrada(zip, origenPath, destPath, idTurnadosPermitidos) {
+    const entradas = fs.readdirSync(origenPath, { withFileTypes: true });
+    entradas.forEach((entrada) => {
+        const rutaOrigen = path.join(origenPath, entrada.name);
+        const rutaDestino = `${destPath}/${entrada.name}`;
+
+        if (entrada.isDirectory()) {
+            const match = entrada.name.match(/^Turnado-(\d+)$/i);
+            if (match && idTurnadosPermitidos) {
+                const idTurnado = parseInt(match[1], 10);
+                if (idTurnadosPermitidos.has(idTurnado)) {
+                    zip.directory(rutaOrigen, rutaDestino);
+                }
+            } else {
+                zip.directory(rutaOrigen, rutaDestino);
+            }
+        } else {
+            zip.file(rutaOrigen, { name: rutaDestino });
+        }
+    });
+}
+
 function generarZip(data, response) {
     response.writeHead(200, {
         'Content-Type': 'application/zip',
@@ -348,8 +374,8 @@ function generarZip(data, response) {
 
     let path_ = path.resolve(data.path);
 
-    zip.directory(path_, path.basename(path_));    
-    
+    agregarCarpetaAsuntoFiltrada(zip, path_, path.basename(path_), data.idTurnadosPermitidos || null);
+
     zip.finalize();
 }
 
@@ -384,4 +410,5 @@ module.exports = {
     ,ensureDirectoryExistsSync
     ,generarZip
     ,zipVacio
+    ,agregarCarpetaAsuntoFiltrada
 }
