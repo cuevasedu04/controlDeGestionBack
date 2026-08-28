@@ -231,9 +231,9 @@ function datosCelebracion(r, idAcuerdoSolicitado) {
         folio: v(r.folio, null),
         idStatusAcuerdo: v(r.idStatusAcuerdo, null),
 
-        // 1 = la cita se guardó pero el acuerdo NO pasó a Autorizado porque le
-        // quedan documentos sin aprobar. No es un error: la fecha sí quedó
-        // registrada y el mensaje del SP explica cuántos faltan.
+        // Desde el 28/08/2026 PROGRAMAR ya no lo devuelve en 1: o se agenda y
+        // el acuerdo queda Autorizado, o el SP rechaza la operación. Se
+        // conserva por compatibilidad con las demás acciones del módulo.
         autorizacionBloqueada: v(r.autorizacionBloqueada, 0),
 
         fechaCelebracionPrevia: v(r.fechaCelebracionPrevia, null),
@@ -268,12 +268,18 @@ async function ejecutarAccionCelebracion(req, res, accion, etiqueta) {
 }
 
 /**
- * PROGRAMAR — asignar por primera vez la fecha y hora de celebración.
+ * PROGRAMAR — asignar la fecha y hora de celebración.
  *
- * DOS DESENLACES, LOS DOS EXITOSOS. El SP guarda SIEMPRE la fecha, y solo mueve
- * el acuerdo a 4. Autorizado si no le quedan documentos sin aprobar. Con
- * pendientes el estatus no cambia y `autorizacionBloqueada` llega en 1: es la
- * señal para que la interfaz avise, no para tratar la respuesta como un fallo.
+ * Autorizar y agendar son EL MISMO ACTO: la DRH revisa el FADRH y, si quedó
+ * bien, le pone fecha ahí mismo y el acuerdo pasa a 4. Autorizado.
+ *
+ * Si al acuerdo le queda algún documento pendiente o rechazado, el SP RECHAZA
+ * la operación y no escribe la fecha: no tiene sentido reunirse a firmar un
+ * oficio que se sabe que está mal. Basta con que uno solo de varios no esté
+ * aprobado. Un acuerdo sin documentos se agenda sin obstáculo.
+ *
+ * Corregido el 28/08/2026; antes guardaba la fecha igual y solo avisaba con
+ * `autorizacionBloqueada`. Ver mapa §2 y §3.3.
  */
 async function programarCelebracion(req, res) {
     return ejecutarAccionCelebracion(req, res, 'PROGRAMAR', 'programarCelebracion');
