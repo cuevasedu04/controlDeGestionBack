@@ -127,8 +127,13 @@ async function consultarAcuerdos(postData, idUsuario) {
  * SP_GESTIONAR_ACUERDO — módulo 1, las cuatro acciones de escritura.
  *
  * SP_GESTIONAR_ACUERDO( _accion, _idAcuerdo, _idUnidadResponsable, _idTema,
- *   _idPrioridad, _descripcionEjecutiva, _urgente, _acuerdoTUAF, _fechaReal,
- *   _modoReapertura, _motivo, _idUsuarioEjecuta, _usuarioEjecuta, _ipOrigen )
+ *   _idPrioridad, _descripcionEjecutiva, _urgente, _acuerdoTUAF,
+ *   _contenidoOficio, _fechaReal, _modoReapertura, _motivo, _idUsuarioEjecuta,
+ *   _usuarioEjecuta, _ipOrigen )
+ *
+ * `_contenidoOficio` se agregó el 28/08/2026, después de `_acuerdoTUAF`: es la
+ * descripción breve del oficio a firmar, que el FADRH capturaba desde siempre
+ * pero no tenía dónde guardarse.
  *
  * El ejecutor y su nombre salen de la BASE, nunca del cuerpo: el nombre se
  * firma en la bitácora y aceptarlo del cliente permitiría firmar como otro.
@@ -140,7 +145,7 @@ async function consultarAcuerdos(postData, idUsuario) {
 async function gestionarAcuerdo(accion, p, ejecutor, ipOrigen) {
     try {
         const result = await db.query(
-            'CALL SP_GESTIONAR_ACUERDO(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'CALL SP_GESTIONAR_ACUERDO(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
                 accion,
                 sp.entero(p.idAcuerdo),
@@ -150,6 +155,7 @@ async function gestionarAcuerdo(accion, p, ejecutor, ipOrigen) {
                 sp.texto(p.descripcionEjecutiva),
                 p.urgente === null || p.urgente === undefined ? null : (p.urgente ? 1 : 0),
                 p.acuerdoTUAF === null || p.acuerdoTUAF === undefined ? null : (p.acuerdoTUAF ? 1 : 0),
+                sp.texto(p.contenidoOficio),
                 sp.texto(p.fechaReal),
                 sp.texto(p.modoReapertura),
                 sp.texto(p.motivo),
