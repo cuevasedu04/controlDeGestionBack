@@ -206,6 +206,19 @@ async function registrarAcuerdoUrgente(req, res) {
     return ejecutarAccionAcuerdo(req, res, 'REGISTRAR_URGENTE', 'registrarAcuerdoUrgente');
 }
 
+/**
+ * Rechazar un acuerdo y devolverlo a la dirección con un motivo.
+ *
+ * Exclusiva de la DRH y su contacto operativo — al revés que registrar. El
+ * motivo es obligatorio: es lo que la dirección necesita para corregir.
+ *
+ * El acuerdo NO se cancela ni se borra: queda en 3. Rechazado esperando
+ * corrección, y al actualizarlo regresa solo a 2. En revisión.
+ */
+async function rechazarAcuerdo(req, res) {
+    return ejecutarAccionAcuerdo(req, res, 'RECHAZAR', 'rechazarAcuerdo');
+}
+
 /* ────────────────────────────────────────────────────────────────
  * MÓDULO 2 — Agenda y celebración
  *
@@ -823,6 +836,7 @@ module.exports = {
     actualizarAcuerdo,
     reabrirAcuerdo,
     registrarAcuerdoUrgente,
+    rechazarAcuerdo,
     programarCelebracion,
     reprogramarCelebracion,
     iniciarReunion,
