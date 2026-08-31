@@ -48,4 +48,8 @@ router.post("/eliminarDocumento",      token.validateToken, controller.eliminarD
 router.post("/consultarDocumentos",    token.validateToken, controller.consultarDocumentos);
 router.post("/verDocumento",           token.validateToken, controller.verDocumento);
 
+// Buzón — el de QUIEN PREGUNTA; no se recibe destinatario por parámetro.
+router.post("/consultarNotificaciones", token.validateToken, controller.consultarNotificaciones);
+router.post("/marcarNotificacionLeida", token.validateToken, controller.marcarNotificacionLeida);
+
 module.exports = router;

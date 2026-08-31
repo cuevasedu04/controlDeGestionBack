@@ -938,9 +938,117 @@ async function destinatariosDeAcuerdo(idAcuerdo) {
     }
 }
 
+/**
+ * A quién se le avisa, pero con `idUsuario` además del correo.
+ *
+ * El buzón necesita ids, no direcciones. Se resuelve aparte de
+ * `destinatariosDeAcuerdo` porque aquel sirve al correo y este al buzón, y
+ * mezclarlos obligaría a que uno cargara datos que no usa.
+ *
+ * Devuelve la lista COMPLETA de a quién avisar: quien registró el acuerdo más
+ * el Director y el Enlace vigentes de su dirección, sin repetir. Cada uno
+ * recibe su propia fila en el buzón, porque leer es cosa de cada quien.
+ */
+async function usuariosANotificar(idAcuerdo) {
+    try {
+        const id = sp.entero(idAcuerdo);
+        if (!id) return [];
+
+        const filas = await db.query(`
+            SELECT DISTINCT u.idUsuario
+              FROM sadrh_tbl_acuerdo a
+              INNER JOIN scg_tbl_usuario u
+                      ON u.idUsuario = a.idUsuarioRegistra
+             WHERE a.idAcuerdo = ? AND a.activo = 1 AND u.activo = 1
+
+            UNION
+
+            SELECT DISTINCT u.idUsuario
+              FROM sadrh_tbl_acuerdo a
+              INNER JOIN sadrh_tbl_enlace_operativo_acuerdo e
+                      ON e.idUnidadResponsable = a.idUnidadResponsable AND e.activo = 1
+              INNER JOIN scg_tbl_usuario u
+                      ON u.idUsuario = e.idUsuario AND u.activo = 1
+             WHERE a.idAcuerdo = ? AND a.activo = 1
+               AND u.idUsuarioRol IN (8, 9)`, [id, id]);
+
+        return (filas || []).map((x) => x.idUsuario).filter(Boolean);
+    } catch (ex) {
+        winston.error(`usuariosANotificar - Excepción: ${ex.message} | acuerdo=${idAcuerdo}`);
+        return [];
+    }
+}
+
+/**
+ * Deja un aviso en el buzón de alguien.
+ *
+ * Igual que el correo: nunca lanza. Un buzón que falla no puede tumbar la
+ * operación que lo originó, que ya está guardada.
+ */
+async function registrarNotificacion(idUsuarioDestino, idAcuerdo, tipo, titulo, mensaje) {
+    try {
+        const result = await db.query(
+            'CALL SP_REGISTRAR_NOTIFICACION(?, ?, ?, ?, ?)',
+            [sp.entero(idUsuarioDestino), sp.entero(idAcuerdo),
+             sp.texto(tipo), sp.texto(titulo), sp.texto(mensaje)]
+        );
+        const r = sp.respuestaEscritura(result);
+        if (Number(r.status) !== 200 || /^Error/i.test(r.message || '')) {
+            winston.warn(`registrarNotificacion - ${r.message} | destino=${idUsuarioDestino}`);
+        }
+        return r;
+    } catch (ex) {
+        winston.error(`registrarNotificacion - Excepción: ${ex.message} | destino=${idUsuarioDestino}`);
+        return null;
+    }
+}
+
+/** El buzón de quien pregunta. El SP no acepta buzón ajeno. */
+async function consultarNotificaciones(postData, idUsuario) {
+    try {
+        const result = await db.query(
+            'CALL SP_CONSULTAR_NOTIFICACIONES(?, ?)',
+            [postData && postData.soloSinLeer ? 1 : 0, idUsuario]
+        );
+
+        const primero = result[0] || [];
+        if (sp.esRechazoDeConsulta(primero)) {
+            return { rechazo: JSON.parse(JSON.stringify(primero[0])) };
+        }
+
+        const conteo = (sp.filas(result[0]) || [])[0] || {};
+        return {
+            total: Number(conteo.total) || 0,
+            sinLeer: Number(conteo.sinLeer) || 0,
+            notificaciones: sp.filas(result[1])
+        };
+    } catch (ex) {
+        winston.error(`consultarNotificaciones - Excepción: ${ex.message} | usuario=${idUsuario}`);
+        throw ex;
+    }
+}
+
+/** Marca una notificación como leída, o todas si no se manda id. */
+async function marcarNotificacionLeida(postData, idUsuario) {
+    try {
+        const result = await db.query(
+            'CALL SP_MARCAR_NOTIFICACION_LEIDA(?, ?)',
+            [sp.entero(postData && postData.idNotificacion), idUsuario]
+        );
+        return sp.respuestaEscritura(result);
+    } catch (ex) {
+        winston.error(`marcarNotificacionLeida - Excepción: ${ex.message} | usuario=${idUsuario}`);
+        throw ex;
+    }
+}
+
 module.exports = {
     obtenerEjecutor,
     destinatariosDeAcuerdo,
+    usuariosANotificar,
+    registrarNotificacion,
+    consultarNotificaciones,
+    marcarNotificacionLeida,
     obtenerCatalogos,
     consultarAcuerdos,
     gestionarAcuerdo,

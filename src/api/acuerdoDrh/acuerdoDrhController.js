@@ -25,6 +25,28 @@ function avisar(hacerlo) {
 }
 
 /**
+ * Deja el aviso en el BUZÓN de todos los que deben enterarse.
+ *
+ * Va junto al correo y con el mismo texto, a propósito: son el mismo aviso por
+ * dos caminos. Si el correo dijera una cosa y el buzón otra, quien reciba
+ * ambos no sabría a cuál hacerle caso — y si el SMTP está caído, como hoy, el
+ * buzón es el único que queda.
+ *
+ * Una fila por persona: leer es cosa de cada quien, y el Director tiene que
+ * poder ver lo suyo sin que el Enlace se lo haya marcado.
+ */
+async function alBuzon(idAcuerdo, tipo, titulo, mensaje) {
+    const destinos = await acuerdoDrhDAO.usuariosANotificar(idAcuerdo);
+    if (!destinos.length) {
+        winston.warn(`[Controller] buzón ${tipo}: nadie a quien avisar del acuerdo ${idAcuerdo}`);
+        return;
+    }
+    for (const idUsuario of destinos) {
+        await acuerdoDrhDAO.registrarNotificacion(idUsuario, idAcuerdo, tipo, titulo, mensaje);
+    }
+}
+
+/**
  * Resuelve al ejecutor de la petición.
  *
  * Del token se lee ÚNICAMENTE idUsuario. El rol, la unidad y el nombre se
@@ -177,9 +199,15 @@ async function ejecutarAccionAcuerdo(req, res, accion, etiqueta) {
         if (accion === 'RECHAZAR' && Number(respuesta.status) === 200 &&
             !/^Error/i.test(respuesta.message || '')) {
             avisar(async () => {
-                const d = await acuerdoDrhDAO.destinatariosDeAcuerdo(
-                    respuesta.idAcuerdo || sp.entero(postData.idAcuerdo));
+                const id = respuesta.idAcuerdo || sp.entero(postData.idAcuerdo);
+                const d = await acuerdoDrhDAO.destinatariosDeAcuerdo(id);
                 if (!d) return;
+
+                await alBuzon(id, 'ACUERDO_RECHAZADO',
+                    `Acuerdo ${respuesta.folio || d.folio} devuelto para corrección`,
+                    `${sp.texto(postData.motivo)}\n\nRevisó: ${ejecutor.nombreCompleto}. ` +
+                    `Al corregirlo, el acuerdo regresa solo a En revisión.`);
+
                 correo.acuerdoRechazado({
                     para: d.para,
                     copia: d.copia,
@@ -326,18 +354,44 @@ async function ejecutarAccionCelebracion(req, res, accion, etiqueta) {
         if (avisoDeCita && Number(respuesta.status) === 200 &&
             !/^Error/i.test(respuesta.message || '')) {
             avisar(async () => {
-                const d = await acuerdoDrhDAO.destinatariosDeAcuerdo(
-                    respuesta.idAcuerdo || sp.entero(postData.idAcuerdo));
+                const id = respuesta.idAcuerdo || sp.entero(postData.idAcuerdo);
+                const d = await acuerdoDrhDAO.destinatariosDeAcuerdo(id);
+                const folio = respuesta.folio || (d && d.folio);
+                const cuando = correo.fechaLarga(
+                    respuesta.fechaCelebracionNueva || respuesta.fechaCelebracionPrevia);
+                const motivo = sp.texto(postData.motivo);
+
+                const textos = {
+                    programada: {
+                        titulo: `Su acuerdo ${folio} fue autorizado y agendado`,
+                        mensaje: `La reunión quedó para el ${cuando}.`
+                    },
+                    reprogramada: {
+                        titulo: `Cambió la fecha de su acuerdo ${folio}`,
+                        mensaje: `La reunión se movió al ${cuando}.` +
+                                 (respuesta.fechaCelebracionPrevia
+                                    ? ` Antes era el ${correo.fechaLarga(respuesta.fechaCelebracionPrevia)}.`
+                                    : '')
+                    },
+                    cancelada: {
+                        titulo: `Se canceló la reunión de su acuerdo ${folio}`,
+                        mensaje: `Tenía fecha el ${cuando}. El acuerdo deja de avanzar en el flujo.`
+                    }
+                }[avisoDeCita];
+
+                await alBuzon(id, `CITA_${avisoDeCita.toUpperCase()}`, textos.titulo,
+                    textos.mensaje + (motivo ? `\n\nMotivo: ${motivo}` : ''));
+
                 correo.citaDeAcuerdo({
                     tipo: avisoDeCita,
                     para: respuesta.correoDestino || (d && d.para),
                     copia: d ? d.copia : [],
-                    folio: respuesta.folio || (d && d.folio),
+                    folio: folio,
                     tema: respuesta.tema || (d && d.tema),
                     descripcion: respuesta.descripcionEjecutiva || (d && d.descripcionEjecutiva),
                     fecha: respuesta.fechaCelebracionNueva || respuesta.fechaCelebracionPrevia,
                     fechaPrevia: respuesta.fechaCelebracionPrevia,
-                    motivo: sp.texto(postData.motivo)
+                    motivo: motivo
                 });
             });
         }
@@ -776,6 +830,12 @@ async function revisarDocumento(req, res) {
         if (Number(r.requiereNotificacion) === 1 && r.motivoRechazo) {
             avisar(async () => {
                 const d = await acuerdoDrhDAO.destinatariosDeAcuerdo(r.idAcuerdo);
+
+                await alBuzon(r.idAcuerdo, 'DOCUMENTO_RECHAZADO',
+                    `Documento rechazado en ${r.folio}`,
+                    `${r.motivoRechazo}\n\nRevisó: ${ejecutor.nombreCompleto}. ` +
+                    `Mientras el documento no esté aprobado, el acuerdo no puede recibir fecha.`);
+
                 correo.documentoRechazado({
                     para: r.correoDestino || (d && d.para),
                     copia: d ? d.copia : [],
@@ -900,10 +960,59 @@ async function verDocumento(req, res) {
     }
 }
 
+/**
+ * El buzón de quien pregunta.
+ *
+ * No recibe de quién es el buzón: el SP lo deduce del usuario que consulta.
+ * Aceptar un destinatario por parámetro sería dejar leer el buzón ajeno con
+ * solo cambiar un número.
+ */
+async function consultarNotificaciones(req, res) {
+    try {
+        const ejecutor = await resolverEjecutor(req);
+        if (!ejecutor) return sesionInvalida(res);
+
+        const r = await acuerdoDrhDAO.consultarNotificaciones(req.body || {}, ejecutor.idUsuario);
+
+        if (r.rechazo) {
+            return res.status(200).json({ status: 400, message: r.rechazo.message });
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: "Buzón consultado.",
+            model: {
+                total: r.total,
+                sinLeer: r.sinLeer,
+                notificaciones: r.notificaciones
+            }
+        });
+    } catch (ex) {
+        winston.error(`[Controller] consultarNotificaciones excepción: ${ex.message}`);
+        res.status(500).json(utils.errorGenerico(ex));
+    }
+}
+
+/** Marca una notificación como leída, o todo el buzón si no se manda id. */
+async function marcarNotificacionLeida(req, res) {
+    try {
+        const ejecutor = await resolverEjecutor(req);
+        if (!ejecutor) return sesionInvalida(res);
+
+        const r = await acuerdoDrhDAO.marcarNotificacionLeida(req.body || {}, ejecutor.idUsuario);
+        return sp.responder(res, r, (x) => ({ marcadas: Number(x.marcadas) || 0 }));
+    } catch (ex) {
+        winston.error(`[Controller] marcarNotificacionLeida excepción: ${ex.message}`);
+        res.status(500).json(utils.errorGenerico(ex));
+    }
+}
+
 module.exports = {
     resolverEjecutor,
     sesionInvalida,
     consultarSesion,
+    consultarNotificaciones,
+    marcarNotificacionLeida,
     consultarCatalogos,
     consultarAcuerdos,
     consultarDashboard,

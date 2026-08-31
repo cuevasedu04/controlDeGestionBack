@@ -51,13 +51,37 @@ function esc(v) {
         .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
-/** dd/mm/aaaa hh:mm a partir de lo que devuelve MySQL. */
+/**
+ * dd/mm/aaaa hh:mm a partir de lo que devuelve MySQL.
+ *
+ * CUIDADO CON LA ZONA HORARIA. El pool de controlDeGestion está configurado
+ * con `timezone: 'utc'` (src/config/database.js), así que el driver devuelve
+ * un Date cuyos componentes UTC son la hora del reloj guardada en la base:
+ * un acuerdo agendado a las 12:00 llega como `...T12:00:00.000Z`.
+ *
+ * Leerlo con getHours() aplica la zona local y le resta seis horas en CDMX —
+ * el aviso decía «06:00» de una reunión de las 12:00. Por eso se leen los
+ * componentes UTC.
+ *
+ * Si en cambio llega una cadena, se toman sus dígitos tal cual: interpretarla
+ * como fecha volvería a meter la zona horaria de por medio.
+ */
 function fechaLarga(v) {
     if (!v) return "";
-    const d = new Date(v);
+
+    if (typeof v === "string") {
+        const m = v.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+        if (m) return `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]} hrs`;
+        const soloFecha = v.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (soloFecha) return `${soloFecha[3]}/${soloFecha[2]}/${soloFecha[1]}`;
+    }
+
+    const d = v instanceof Date ? v : new Date(v);
     if (Number.isNaN(d.getTime())) return String(v);
+
     const p = (x) => String(x).padStart(2, "0");
-    return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())} hrs`;
+    return `${p(d.getUTCDate())}/${p(d.getUTCMonth() + 1)}/${d.getUTCFullYear()} ` +
+           `${p(d.getUTCHours())}:${p(d.getUTCMinutes())} hrs`;
 }
 
 /**
