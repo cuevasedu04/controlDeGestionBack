@@ -302,6 +302,14 @@ async function llamarInstruccion(accion, parametros, ejecutor) {
  *
  * Requiere que la DRH haya iniciado la reunión: hasta que existe
  * `fechaInicioReunion`, el SP lo rechaza.
+ *
+ * NO acepta plazo. El SP sí lo recibiría en esta acción, pero eso contradice su
+ * propia regla: ACTUALIZAR_PLAZO está reservada a los roles 6 y 7 con el
+ * mensaje "Solo la DRH o su Contacto Operativo pueden fijar el plazo". Como
+ * REGISTRAR solo la ejecutan los roles 8 y 9, dejar pasar `fechaCompromiso`
+ * permitiría al Director ponerse su propia fecha de compromiso — justo lo que
+ * el negocio impide, porque el plazo lo fija quien va a exigir el cumplimiento.
+ * Se manda null y la instrucción nace sin plazo, a la espera de la DRH.
  */
 async function registrarInstruccion(p, ejecutor, ipOrigen) {
     try {
@@ -311,7 +319,7 @@ async function registrarInstruccion(p, ejecutor, ipOrigen) {
             null,                       // _idInstruccion
             'FIDRH',                    // _origen: lo fija el servidor
             sp.texto(p.instruccion),
-            sp.texto(p.fechaCompromiso),
+            null,                       // _fechaCompromiso: es de la DRH, ver arriba
             null, null, null, null,     // avance, especificar, requiereReunion, motivoNoAtendido
             ejecutor.idUsuario,
             ejecutor.nombreCompleto,
