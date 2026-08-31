@@ -880,8 +880,67 @@ async function consultarDocumentos(postData, idUsuario) {
     }
 }
 
+/**
+ * A quién se le avisa de lo que pasa con un acuerdo.
+ *
+ * Los SPs resuelven `correoDestino` como el correo de quien REGISTRÓ el
+ * acuerdo, y eso se queda corto: si el Enlace lo registró y le rechazan un
+ * documento, su Director nunca se entera. Aquí se agrega a la copia el resto
+ * de la gente adscrita a esa dirección —Director y Enlace—, que es lo que
+ * haría cualquier oficina.
+ *
+ * Devuelve `{ para, copia, folio, descripcionEjecutiva, tema }`. Si el acuerdo
+ * no existe devuelve null; nunca lanza, porque solo alimenta un aviso.
+ */
+async function destinatariosDeAcuerdo(idAcuerdo) {
+    try {
+        const id = sp.entero(idAcuerdo);
+        if (!id) return null;
+
+        // Ojo: para un SELECT plano `db.query` devuelve las filas DIRECTAMENTE,
+        // no envueltas en conjuntos como en un CALL. Leerlo con result[0][0]
+        // devuelve siempre null.
+        const datos = await db.query(`
+            SELECT a.folio, a.descripcionEjecutiva, a.idUnidadResponsable,
+                   t.tema, reg.correo AS correoRegistra
+              FROM sadrh_tbl_acuerdo a
+              LEFT JOIN scg_tbl_usuario reg ON reg.idUsuario = a.idUsuarioRegistra
+              LEFT JOIN scg_cat_tema    t   ON t.idTema      = a.idTema
+             WHERE a.idAcuerdo = ? AND a.activo = 1
+             LIMIT 1`, [id]);
+
+        const cab = datos && datos.length ? datos[0] : null;
+        if (!cab) return null;
+
+        // Director y Enlace vigentes de esa dirección.
+        const gente = await db.query(`
+            SELECT u.correo
+              FROM sadrh_tbl_enlace_operativo_acuerdo e
+              INNER JOIN scg_tbl_usuario u ON u.idUsuario = e.idUsuario
+             WHERE e.idUnidadResponsable = ?
+               AND e.activo = 1
+               AND u.activo = 1
+               AND u.idUsuarioRol IN (8, 9)`, [cab.idUnidadResponsable]);
+
+        const dela = (gente || []).map((x) => x.correo).filter(Boolean);
+        const para = cab.correoRegistra || dela[0] || null;
+
+        return {
+            para: para,
+            copia: dela.filter((c) => c !== para),
+            folio: cab.folio,
+            tema: cab.tema,
+            descripcionEjecutiva: cab.descripcionEjecutiva
+        };
+    } catch (ex) {
+        winston.error(`destinatariosDeAcuerdo - Excepción: ${ex.message} | acuerdo=${idAcuerdo}`);
+        return null;
+    }
+}
+
 module.exports = {
     obtenerEjecutor,
+    destinatariosDeAcuerdo,
     obtenerCatalogos,
     consultarAcuerdos,
     gestionarAcuerdo,

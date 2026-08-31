@@ -1,9 +1,28 @@
 const acuerdoDrhDAO = require("../../DAO/acuerdoDrhDAO");
 const sp = require("./spAcuerdoDrh");
+const correo = require("./correoAcuerdoDrh");
 const utils = require("../utils/utils");
 const winston = require("../../config/winston");
 const path = require("path");
 const fs = require("fs");
+
+/**
+ * Lanza un aviso por correo SIN hacer esperar al usuario.
+ *
+ * Para cuando esto corre, el SP ya hizo COMMIT y la respuesta ya se decidió:
+ * el rechazo ya quedó guardado, la cita ya se movió. Un SMTP lento o caído no
+ * puede retrasar esa respuesta, y mucho menos hacer creer que la operación
+ * falló. Por eso va fuera del camino de la petición y con su propia red.
+ */
+function avisar(hacerlo) {
+    setImmediate(async () => {
+        try {
+            await hacerlo();
+        } catch (ex) {
+            winston.error(`[Controller] aviso por correo falló: ${ex.message}`);
+        }
+    });
+}
 
 /**
  * Resuelve al ejecutor de la petición.
@@ -151,6 +170,27 @@ async function ejecutarAccionAcuerdo(req, res, accion, etiqueta) {
         }
 
         const respuesta = await acuerdoDrhDAO.gestionarAcuerdo(accion, postData, ejecutor, sp.ipDe(req));
+
+        // El rechazo del FADRH se avisa por correo. A diferencia del rechazo
+        // de documento, este SP no devuelve `correoDestino`, así que los
+        // destinatarios se resuelven aquí a partir del acuerdo.
+        if (accion === 'RECHAZAR' && Number(respuesta.status) === 200 &&
+            !/^Error/i.test(respuesta.message || '')) {
+            avisar(async () => {
+                const d = await acuerdoDrhDAO.destinatariosDeAcuerdo(
+                    respuesta.idAcuerdo || sp.entero(postData.idAcuerdo));
+                if (!d) return;
+                correo.acuerdoRechazado({
+                    para: d.para,
+                    copia: d.copia,
+                    folio: respuesta.folio || d.folio,
+                    descripcion: d.descripcionEjecutiva,
+                    motivo: sp.texto(postData.motivo),
+                    revisor: ejecutor.nombreCompleto
+                });
+            });
+        }
+
         return sp.responder(res, respuesta, datosAcuerdo);
     } catch (ex) {
         winston.error(`[Controller] ${etiqueta} excepción: ${ex.message}`);
@@ -273,6 +313,35 @@ async function ejecutarAccionCelebracion(req, res, accion, etiqueta) {
         }
 
         const respuesta = await acuerdoDrhDAO.gestionarCelebracion(accion, postData, ejecutor, sp.ipDe(req));
+
+        // Agendar, mover o cancelar una reunión son cosas que la dirección no
+        // puede enterarse entrando al sistema por casualidad. Iniciar y
+        // finalizar la reunión no avisan: ambas ocurren con la gente presente.
+        const avisoDeCita = {
+            PROGRAMAR: 'programada',
+            REPROGRAMAR: 'reprogramada',
+            CANCELAR: 'cancelada'
+        }[accion];
+
+        if (avisoDeCita && Number(respuesta.status) === 200 &&
+            !/^Error/i.test(respuesta.message || '')) {
+            avisar(async () => {
+                const d = await acuerdoDrhDAO.destinatariosDeAcuerdo(
+                    respuesta.idAcuerdo || sp.entero(postData.idAcuerdo));
+                correo.citaDeAcuerdo({
+                    tipo: avisoDeCita,
+                    para: respuesta.correoDestino || (d && d.para),
+                    copia: d ? d.copia : [],
+                    folio: respuesta.folio || (d && d.folio),
+                    tema: respuesta.tema || (d && d.tema),
+                    descripcion: respuesta.descripcionEjecutiva || (d && d.descripcionEjecutiva),
+                    fecha: respuesta.fechaCelebracionNueva || respuesta.fechaCelebracionPrevia,
+                    fechaPrevia: respuesta.fechaCelebracionPrevia,
+                    motivo: sp.texto(postData.motivo)
+                });
+            });
+        }
+
         return sp.responder(res, respuesta, (r) => datosCelebracion(r, sp.entero(postData.idAcuerdo)));
     } catch (ex) {
         winston.error(`[Controller] ${etiqueta} excepción: ${ex.message}`);
@@ -700,9 +769,25 @@ async function revisarDocumento(req, res) {
         }
 
         const r = await acuerdoDrhDAO.revisarDocumento(postData, ejecutor, sp.ipDe(req));
+
+        // El SP señala el rechazo con `requiereNotificacion`; aquí se cumple.
+        // Se copia también al resto de la dirección: si el Enlace subió el
+        // documento, su Director tiene que enterarse de que lo devolvieron.
+        if (Number(r.requiereNotificacion) === 1 && r.motivoRechazo) {
+            avisar(async () => {
+                const d = await acuerdoDrhDAO.destinatariosDeAcuerdo(r.idAcuerdo);
+                correo.documentoRechazado({
+                    para: r.correoDestino || (d && d.para),
+                    copia: d ? d.copia : [],
+                    folio: r.folio,
+                    documento: postData.nombreDocumento || null,
+                    motivo: r.motivoRechazo,
+                    revisor: ejecutor.nombreCompleto
+                });
+            });
+        }
+
         return sp.responder(res, r, (x) => Object.assign(datosDocumento(x), {
-            // Notificar el rechazo por app y correo es obligatorio; el SP solo
-            // lo señala y el envío queda pendiente en el backend.
             requiereNotificacion: x.requiereNotificacion !== undefined ? x.requiereNotificacion : 0,
             correoDestino: x.correoDestino !== undefined ? x.correoDestino : null,
             motivoRechazo: x.motivoRechazo !== undefined ? x.motivoRechazo : null
