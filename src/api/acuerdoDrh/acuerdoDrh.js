@@ -16,6 +16,7 @@ router.post("/actualizarAcuerdo",       token.validateToken, controller.actualiz
 router.post("/reabrirAcuerdo",          token.validateToken, controller.reabrirAcuerdo);
 router.post("/registrarAcuerdoUrgente", token.validateToken, controller.registrarAcuerdoUrgente);
 router.post("/rechazarAcuerdo",         token.validateToken, controller.rechazarAcuerdo);
+router.post("/ajustarPrioridad",        token.validateToken, controller.ajustarPrioridad);
 
 // Celebración y agenda — módulo 2
 router.post("/programarCelebracion",   token.validateToken, controller.programarCelebracion);

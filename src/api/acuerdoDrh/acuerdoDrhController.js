@@ -255,6 +255,23 @@ async function actualizarAcuerdo(req, res) {
  * `idAcuerdoOrigen` del anterior: son dos acuerdos distintos y conviene no
  * confundirlos al pintar la respuesta.
  */
+/**
+ * Fijar la prioridad a mano, o soltarla.
+ *
+ * La prioridad sale de la fecha por cumplimiento, pero eso es un punto de
+ * partida y no una sentencia: quien conoce el asunto puede corregirla.
+ *
+ * `idPrioridad` en **null** no es un olvido — es como se suelta el ajuste y el
+ * acuerdo vuelve a la prioridad que le toca por su fecha. Por eso esta acción
+ * no exige el campo.
+ *
+ * La pueden usar los cuatro roles operativos; el Director y su Enlace, solo
+ * sobre acuerdos de su propia unidad. Lo verifica el SP.
+ */
+async function ajustarPrioridad(req, res) {
+    return ejecutarAccionAcuerdo(req, res, 'AJUSTAR_PRIORIDAD', 'ajustarPrioridad');
+}
+
 async function reabrirAcuerdo(req, res) {
     return ejecutarAccionAcuerdo(req, res, 'REABRIR', 'reabrirAcuerdo');
 }
@@ -1031,6 +1048,7 @@ module.exports = {
     reabrirAcuerdo,
     registrarAcuerdoUrgente,
     rechazarAcuerdo,
+    ajustarPrioridad,
     programarCelebracion,
     reprogramarCelebracion,
     iniciarReunion,
