@@ -145,7 +145,7 @@ async function consultarAcuerdos(postData, idUsuario) {
 async function gestionarAcuerdo(accion, p, ejecutor, ipOrigen) {
     try {
         const result = await db.query(
-            'CALL SP_GESTIONAR_ACUERDO(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'CALL SP_GESTIONAR_ACUERDO(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
                 accion,
                 sp.entero(p.idAcuerdo),
@@ -161,7 +161,11 @@ async function gestionarAcuerdo(accion, p, ejecutor, ipOrigen) {
                 sp.texto(p.motivo),
                 ejecutor.idUsuario,
                 ejecutor.nombreCompleto,
-                ipOrigen
+                ipOrigen,
+                // Para cuándo se necesita resuelto. Desde el 01/09/2026 el SP
+                // deriva de aquí la prioridad, así que `idPrioridad` solo se
+                // usa cuando NO viene esta fecha —los acuerdos de antes.
+                sp.texto(p.fechaCumplimiento)
             ]
         );
 
