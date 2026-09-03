@@ -204,7 +204,7 @@ async function gestionarAcuerdo(accion, p, ejecutor, ipOrigen) {
 async function gestionarCelebracion(accion, p, ejecutor, ipOrigen) {
     try {
         const result = await db.query(
-            'CALL SP_GESTIONAR_CELEBRACION_ACUERDO(?, ?, ?, ?, ?, ?, ?)',
+            'CALL SP_GESTIONAR_CELEBRACION_ACUERDO(?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
                 accion,
                 sp.entero(p.idAcuerdo),
@@ -212,7 +212,13 @@ async function gestionarCelebracion(accion, p, ejecutor, ipOrigen) {
                 sp.texto(p.motivo),
                 ejecutor.idUsuario,
                 ejecutor.nombreCompleto,
-                ipOrigen
+                ipOrigen,
+                // Dónde y cómo se celebra. Los dos son opcionales: una cita
+                // puede quedar agendada antes de saber en qué sala, y exigir
+                // el lugar para poder agendar convertiría un dato útil en un
+                // obstáculo. Se completan después con REPROGRAMAR.
+                sp.texto(p.modalidad),
+                sp.texto(p.lugar)
             ]
         );
 
