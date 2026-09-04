@@ -479,6 +479,8 @@ async function consultarInstrucciones(postData, idUsuario) {
  *   3. desglosePorDireccion  una fila POR CADA dirección activa.
  *   4. movimientoPeriodo     los hechos del rango pedido. UNA fila.
  *   5. tiemposPorTramo       cuánto tarda cada tramo. TRES filas.
+ *   6. avancePorDireccion    el semáforo de cada dirección. UNA fila por
+ *                           (dirección, avance) con cuenta mayor que cero.
  *
  * El tercero incluye las direcciones con CERO acuerdos, con todo en cero: sale
  * de un LEFT JOIN desde el catálogo y no desde los acuerdos, porque que una
@@ -546,7 +548,13 @@ async function consultarDashboard(postData, idUsuario) {
                 resumenInstrucciones: (result[1] && result[1][0]) ? JSON.parse(JSON.stringify(result[1][0])) : {},
                 desglosePorDireccion: sp.filas(result[2]),
                 movimientoPeriodo: (result[3] && result[3][0]) ? JSON.parse(JSON.stringify(result[3][0])) : {},
-                tiemposPorTramo: sp.filas(result[4])
+                tiemposPorTramo: sp.filas(result[4]),
+                // Trae el NOMBRE y el COLOR del catálogo en cada fila, no
+                // solo el id: así el nombre y el color se cambian en la base
+                // y la pantalla los toma sin tocar código. Y viene por filas
+                // en vez de por columnas fijas porque `scg_cat_avance` es un
+                // catálogo y puede ganar una quinta.
+                avancePorDireccion: sp.filas(result[5])
             }
         };
     } catch (ex) {
