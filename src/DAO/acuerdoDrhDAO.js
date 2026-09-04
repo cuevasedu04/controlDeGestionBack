@@ -279,13 +279,18 @@ async function consultarAgenda(postData, idUsuario) {
  *   _requiereReunion, _motivoNoAtendido, _idUsuarioEjecuta, _usuarioEjecuta,
  *   _ipOrigen )
  *
- * PERMISOS — y aquí está lo que más se presta a confusión: las tres acciones
- * del mismo SP NO son del mismo rol.
+ * PERMISOS — las tres acciones del mismo SP no son del mismo rol.
  *   REGISTRAR          -> roles 8 y 9 (Director adscrito / Enlace operativo)
  *   ACTUALIZAR_AVANCE  -> roles 8 y 9
- *   ACTUALIZAR_PLAZO   -> roles 6 y 7 (DRH / Contacto operativo)
- * El Director captura y mueve su semáforo, pero no se pone a sí mismo la fecha
- * de entrega. Los roles 8 y 9 quedan además acotados a su propia unidad.
+ *   ACTUALIZAR_PLAZO   -> roles 6, 7, 8 y 9
+ *
+ * El plazo lo fijaban SOLO la DRH y su contacto operativo, con el argumento de
+ * que lo pone quien va a exigir el cumplimiento. El equipo lo cambió en la
+ * demostración del 01/09/2026: el Director y su Enlace también, porque son
+ * quienes saben en cuánto pueden cumplir. Sigue acotado a su propia unidad y
+ * todo cambio queda en la bitácora con quién lo hizo.
+ *
+ * Los roles 8 y 9 quedan además acotados a su propia unidad.
  *
  * Los parámetros que cada acción no usa van en null explícito y comentados por
  * posición: son trece y confundir dos de ellos no da error de sintaxis, solo un
@@ -318,13 +323,16 @@ async function llamarInstruccion(accion, parametros, ejecutor) {
  * Requiere que la DRH haya iniciado la reunión: hasta que existe
  * `fechaInicioReunion`, el SP lo rechaza.
  *
- * NO acepta plazo. El SP sí lo recibiría en esta acción, pero eso contradice su
- * propia regla: ACTUALIZAR_PLAZO está reservada a los roles 6 y 7 con el
- * mensaje "Solo la DRH o su Contacto Operativo pueden fijar el plazo". Como
- * REGISTRAR solo la ejecutan los roles 8 y 9, dejar pasar `fechaCompromiso`
- * permitiría al Director ponerse su propia fecha de compromiso — justo lo que
- * el negocio impide, porque el plazo lo fija quien va a exigir el cumplimiento.
- * Se manda null y la instrucción nace sin plazo, a la espera de la DRH.
+ * ACEPTA PLAZO, y es opcional. Si en la reunión se acordó fecha, se guarda con
+ * la instrucción; si no, la instrucción nace sin ella y se le pone después con
+ * ACTUALIZAR_PLAZO.
+ *
+ * No siempre fue así. Hasta el 04/09/2026 se mandaba null a propósito: el SP lo
+ * habría recibido, pero ACTUALIZAR_PLAZO estaba reservada a los roles 6 y 7, y
+ * como REGISTRAR solo la ejecutan los 8 y 9, dejar pasar `fechaCompromiso` le
+ * habría permitido al Director ponerse su propia fecha — justo lo que la regla
+ * impedía. Esa regla desapareció el 01/09/2026, cuando el equipo decidió que el
+ * Director y su Enlace también fijan plazos.
  */
 async function registrarInstruccion(p, ejecutor, ipOrigen) {
     try {
@@ -334,7 +342,20 @@ async function registrarInstruccion(p, ejecutor, ipOrigen) {
             null,                       // _idInstruccion
             'FIDRH',                    // _origen: lo fija el servidor
             sp.texto(p.instruccion),
-            null,                       // _fechaCompromiso: es de la DRH, ver arriba
+            // _fechaCompromiso — SE MANDA desde el 04/09/2026.
+            //
+            // Iba en null a propósito: el SP lo aceptaba de los roles 8 y 9
+            // pero fijarlo era de la DRH, así que mandarlo habría abierto por
+            // el endpoint lo que el negocio cerraba.
+            //
+            // Dejó de serlo el 01/09, cuando el equipo decidió que el Director
+            // también fija plazos. Con la misma persona autorizada para las dos
+            // cosas, separarlas obligaba a capturar la instrucción y volver a
+            // abrirla para ponerle la fecha: dos pasos para una decisión.
+            //
+            // Sigue siendo OPCIONAL. Una instrucción puede quedar sin plazo si
+            // en la reunión no se acordó, y para eso está ACTUALIZAR_PLAZO.
+            sp.texto(p.fechaCompromiso),
             null, null, null, null,     // avance, especificar, requiereReunion, motivoNoAtendido
             ejecutor.idUsuario,
             ejecutor.nombreCompleto,
@@ -349,8 +370,12 @@ async function registrarInstruccion(p, ejecutor, ipOrigen) {
 /**
  * ACTUALIZAR_PLAZO — fijar o corregir la fecha de compromiso.
  *
- * Exclusiva de la DRH y su contacto operativo: el plazo lo pone quien va a
- * exigir el cumplimiento, no quien debe cumplirlo.
+ * De la DRH, su contacto operativo, el Director y su Enlace. Desde el
+ * 01/09/2026: el plazo lo pone quien va a exigir el cumplimiento Y quien sabe
+ * en cuánto puede cumplir.
+ *
+ * Sigue haciendo falta aunque el plazo ya se pueda fijar al capturar: es la vía
+ * para CORREGIRLO después, y para ponérselo a las que se capturaron sin él.
  *
  * Detecta la redundancia: reenviar el mismo plazo responde "ya tiene registrado
  * ese mismo plazo" en 200. No falló, simplemente no cambió nada.
