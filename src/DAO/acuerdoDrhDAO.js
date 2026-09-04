@@ -468,49 +468,75 @@ async function consultarInstrucciones(postData, idUsuario) {
 }
 
 /**
- * SP_OBTENER_DASHBOARD_ESTADISTICAS( _idUnidadResponsable, _idUsuarioConsulta )
+ * SP_OBTENER_DASHBOARD_ESTADISTICAS( _idUnidadResponsable, _idUsuarioConsulta,
+ *                                    _fechaInicio, _fechaFin )
  *
- * TRES CONJUNTOS, y el orden importa porque el driver los entrega por posición.
- * Si algún día se agrega un cuarto, va AL FINAL: mover uno rompería a cualquier
- * consumidor.
+ * CUATRO CONJUNTOS, y el orden importa porque el driver los entrega por
+ * posición. El cuarto se agregó AL FINAL el 04/09/2026, como decía este mismo
+ * comentario que había que hacerlo: mover uno rompería a cualquier consumidor.
  *   1. resumenAcuerdos       totales por estatus. UNA fila.
  *   2. resumenInstrucciones  semáforo agregado y vencidas. UNA fila.
  *   3. desglosePorDireccion  una fila POR CADA dirección activa.
+ *   4. movimientoPeriodo     los hechos del rango pedido. UNA fila.
  *
  * El tercero incluye las direcciones con CERO acuerdos, con todo en cero: sale
  * de un LEFT JOIN desde el catálogo y no desde los acuerdos, porque que una
  * dirección no haya registrado nada es justamente el dato que la DRH querría
  * ver.
  *
- * Los tres excluyen cancelados, de modo que la suma del desglose cuadra con el
- * primer conjunto y con lo que devuelve consultarAcuerdos. Los cancelados
- * siguen visibles en su propia columna del desglose.
+ * EL PERIODO SOLO TOCA EL CUARTO. Los tres primeros son inventario —cuántos hay
+ * HOY en cada estado— y recortarlos por un rango sería mentir: en un «reporte
+ * de septiembre», decir «4 por revisar» daría a entender que había cuatro en
+ * septiembre, cuando son los cuatro que están esperando ahora mismo. Un
+ * inventario es la foto del momento en que se mira.
+ *
+ * El cuarto cuenta por FECHA DEL HECHO, decisión del usuario el 04/09/2026:
+ * cada cifra se corta por su propia fecha, no por la de registro del acuerdo.
+ * Sin eso no se puede comparar lo que entró contra lo que salió, que es la
+ * cifra que dice si el rezago crece. Sale de la bitácora, que es donde viven
+ * las fechas de autorización, rechazo y conclusión — la tabla del acuerdo no
+ * tiene columna para ninguna de las tres.
+ *
+ * Los tres primeros excluyen cancelados, de modo que la suma del desglose
+ * cuadra con el primer conjunto y con lo que devuelve consultarAcuerdos. El
+ * cuarto NO los excluye, y es a propósito: un acuerdo cancelado en octubre sí
+ * se registró en septiembre, y el movimiento cuenta hechos, no lo que sigue
+ * vivo. Por eso trae su propia cifra de `cancelados`.
  *
  * El rol 1 Admin queda rechazado: administra el sistema, no opera dentro de él.
  */
 async function consultarDashboard(postData, idUsuario) {
     try {
         const result = await db.query(
-            'CALL SP_OBTENER_DASHBOARD_ESTADISTICAS(?, ?)',
-            [sp.entero(postData.idUnidadResponsable), idUsuario]
+            'CALL SP_OBTENER_DASHBOARD_ESTADISTICAS(?, ?, ?, ?)',
+            [
+                sp.entero(postData.idUnidadResponsable),
+                idUsuario,
+                // En null cubren toda la historia, que es como se pedía antes
+                // de que existiera el periodo: quien no mande fechas sigue
+                // recibiendo lo mismo que recibía.
+                sp.texto(postData.fechaInicio),
+                sp.texto(postData.fechaFin),
+            ]
         );
 
         // En caso de rechazo el SP devuelve UN solo conjunto con status y
-        // message, no los tres.
+        // message, no los cuatro.
         const primero = result[0] || [];
 
         if (sp.esRechazoDeConsulta(primero)) {
             return { rechazo: JSON.parse(JSON.stringify(primero[0])) };
         }
 
-        // Los dos primeros son agregados de UNA fila; se entregan como objeto y
-        // no como arreglo de un elemento, para que el cliente no tenga que hacer
-        // [0] sobre algo que nunca va a tener más de un renglón.
+        // Los agregados de UNA fila se entregan como objeto y no como arreglo
+        // de un elemento, para que el cliente no tenga que hacer [0] sobre algo
+        // que nunca va a tener más de un renglón.
         return {
             dashboard: {
                 resumenAcuerdos: (result[0] && result[0][0]) ? JSON.parse(JSON.stringify(result[0][0])) : {},
                 resumenInstrucciones: (result[1] && result[1][0]) ? JSON.parse(JSON.stringify(result[1][0])) : {},
-                desglosePorDireccion: sp.filas(result[2])
+                desglosePorDireccion: sp.filas(result[2]),
+                movimientoPeriodo: (result[3] && result[3][0]) ? JSON.parse(JSON.stringify(result[3][0])) : {}
             }
         };
     } catch (ex) {
