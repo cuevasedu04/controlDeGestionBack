@@ -478,6 +478,7 @@ async function consultarInstrucciones(postData, idUsuario) {
  *   2. resumenInstrucciones  semáforo agregado y vencidas. UNA fila.
  *   3. desglosePorDireccion  una fila POR CADA dirección activa.
  *   4. movimientoPeriodo     los hechos del rango pedido. UNA fila.
+ *   5. tiemposPorTramo       cuánto tarda cada tramo. TRES filas.
  *
  * El tercero incluye las direcciones con CERO acuerdos, con todo en cero: sale
  * de un LEFT JOIN desde el catálogo y no desde los acuerdos, porque que una
@@ -489,6 +490,14 @@ async function consultarInstrucciones(postData, idUsuario) {
  * de septiembre», decir «4 por revisar» daría a entender que había cuatro en
  * septiembre, cuando son los cuatro que están esperando ahora mismo. Un
  * inventario es la foto del momento en que se mira.
+ *
+ * EL QUINTO MEZCLA LAS DOS LECTURAS, y las separa por columna. `cuantos`,
+ * `diasPromedio` y `diasMaximo` son de lo que YA cruzó el tramo dentro del
+ * corte; `esperando` y `diasDelMasViejo` son de lo que está detenido HOY. La
+ * segunda es la que mueve a actuar —«ocho llevan esperando, el más viejo 23
+ * días»— y la primera la que se presenta. Deja fuera cancelados y urgentes:
+ * un urgente nace Celebrado y nunca recorrió los dos primeros tramos, así que
+ * promediarlo haría ver el proceso más rápido de lo que es.
  *
  * El cuarto cuenta por FECHA DEL HECHO, decisión del usuario el 04/09/2026:
  * cada cifra se corta por su propia fecha, no por la de registro del acuerdo.
@@ -536,7 +545,8 @@ async function consultarDashboard(postData, idUsuario) {
                 resumenAcuerdos: (result[0] && result[0][0]) ? JSON.parse(JSON.stringify(result[0][0])) : {},
                 resumenInstrucciones: (result[1] && result[1][0]) ? JSON.parse(JSON.stringify(result[1][0])) : {},
                 desglosePorDireccion: sp.filas(result[2]),
-                movimientoPeriodo: (result[3] && result[3][0]) ? JSON.parse(JSON.stringify(result[3][0])) : {}
+                movimientoPeriodo: (result[3] && result[3][0]) ? JSON.parse(JSON.stringify(result[3][0])) : {},
+                tiemposPorTramo: sp.filas(result[4])
             }
         };
     } catch (ex) {
