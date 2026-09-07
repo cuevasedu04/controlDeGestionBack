@@ -89,24 +89,45 @@ async function obtenerCatalogos(idUsuario) {
 }
 
 /**
+ * Los tres modos con que se puede pedir la lista respecto de los cancelados.
+ *
+ * Cualquier otra cosa —incluido no mandar nada— cae en 'NO', que es como se
+ * comportaba el SP antes de tener el parámetro. Se normaliza aquí además de en
+ * la base: el SP ya falla cerrado, pero un valor raro que llegue del cliente no
+ * tiene por qué viajar hasta allá.
+ */
+const MODOS_CANCELADOS = ['NO', 'TAMBIEN', 'SOLO'];
+
+/**
  * SP_CONSULTAR_ACUERDOS( _busqueda, _idStatus, _fechaInicio, _fechaFin,
- *                        _idUsuarioConsulta )
+ *                        _idUsuarioConsulta, _cancelados )
  *
  * El SP filtra por unidad según el rol de quien consulta: los roles 8 y 9 solo
  * ven su dirección; la DRH y su contacto operativo ven todo. El idUsuario sale
  * del token, nunca del cuerpo, así que el alcance no se puede falsear desde el
  * cliente.
+ *
+ * `_cancelados` se agregó el 06/09/2026, al final de la firma. Un acuerdo
+ * cancelado estaba escondido en TODAS las pantallas, incluida la Bitácora, que
+ * es el archivo; ahora la Bitácora puede pedirlos. Quien no lo mande sigue sin
+ * verlos, que es lo que el tablero y la bandeja necesitan: ahí se lista trabajo
+ * pendiente, y un acuerdo cancelado ya no lo es.
  */
 async function consultarAcuerdos(postData, idUsuario) {
     try {
+        const modo = MODOS_CANCELADOS.includes(String(postData.cancelados || '').toUpperCase())
+            ? String(postData.cancelados).toUpperCase()
+            : 'NO';
+
         const result = await db.query(
-            'CALL SP_CONSULTAR_ACUERDOS(?, ?, ?, ?, ?)',
+            'CALL SP_CONSULTAR_ACUERDOS(?, ?, ?, ?, ?, ?)',
             [
                 sp.texto(postData.busqueda),
                 sp.entero(postData.idStatus),
                 sp.texto(postData.fechaInicio),
                 sp.texto(postData.fechaFin),
-                idUsuario
+                idUsuario,
+                modo
             ]
         );
 
