@@ -670,7 +670,7 @@ async function consultarAdscripciones(postData, idUsuario) {
 
 /**
  * SP_ASIGNAR_ENLACE_OPERATIVO( _idUnidadResponsable, _idUsuario, _tipoEnlace,
- *                              _esTitular, _idUsuarioRegistra )
+ *                              _esTitular, _idUsuarioRegistra, _ipOrigen )
  *
  * DOS CAMINOS, ambos exitosos y distinguibles por el mensaje:
  *   - no existía fila para ese par unidad/usuario -> "Adscripción asignada"
@@ -682,16 +682,17 @@ async function consultarAdscripciones(postData, idUsuario) {
  * nombrándola. Sin esa regla, el LIMIT 1 con que los SPs resuelven la unidad
  * elegiría una al azar.
  */
-async function asignarAdscripcion(p, ejecutor) {
+async function asignarAdscripcion(p, ejecutor, ipOrigen) {
     try {
         const result = await db.query(
-            'CALL SP_ASIGNAR_ENLACE_OPERATIVO(?, ?, ?, ?, ?)',
+            'CALL SP_ASIGNAR_ENLACE_OPERATIVO(?, ?, ?, ?, ?, ?)',
             [
                 sp.entero(p.idUnidadResponsable),
                 sp.entero(p.idUsuario),
                 sp.texto(p.tipoEnlace),
                 p.esTitular ? 1 : 0,
-                ejecutor.idUsuario
+                ejecutor.idUsuario,
+                sp.texto(ipOrigen)
             ]
         );
 
@@ -709,7 +710,7 @@ async function asignarAdscripcion(p, ejecutor) {
 }
 
 /**
- * SP_DESACTIVAR_ENLACE_OPERATIVO( _idEnlace, _idUsuarioModifica )
+ * SP_DESACTIVAR_ENLACE_OPERATIVO( _idEnlace, _idUsuarioModifica, _ipOrigen )
  *
  * Baja lógica: la fila se conserva con `activo = 0`, así se puede reconstruir
  * por qué unidades pasó una persona.
@@ -721,11 +722,11 @@ async function asignarAdscripcion(p, ejecutor) {
  * Llamarlo dos veces responde "ya estaba desactivada" en 200 y NO escribe en la
  * bitácora: no falló, simplemente no cambió nada.
  */
-async function desactivarAdscripcion(p, ejecutor) {
+async function desactivarAdscripcion(p, ejecutor, ipOrigen) {
     try {
         const result = await db.query(
-            'CALL SP_DESACTIVAR_ENLACE_OPERATIVO(?, ?)',
-            [sp.entero(p.idEnlace), ejecutor.idUsuario]
+            'CALL SP_DESACTIVAR_ENLACE_OPERATIVO(?, ?, ?)',
+            [sp.entero(p.idEnlace), ejecutor.idUsuario, sp.texto(ipOrigen)]
         );
 
         const respuesta = sp.respuestaEscritura(result);

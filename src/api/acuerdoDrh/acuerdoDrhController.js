@@ -726,7 +726,7 @@ async function asignarAdscripcion(req, res) {
             return res.status(200).json(utils.postDataInvalido(postData));
         }
 
-        const r = await acuerdoDrhDAO.asignarAdscripcion(postData, ejecutor);
+        const r = await acuerdoDrhDAO.asignarAdscripcion(postData, ejecutor, sp.ipDe(req));
         return sp.responder(res, r, (x) => ({
             idEnlace: x.idEnlace !== undefined ? x.idEnlace : null,
             idUnidadResponsable: x.idUnidadResponsable !== undefined ? x.idUnidadResponsable : null,
@@ -751,7 +751,7 @@ async function desactivarAdscripcion(req, res) {
             return res.status(200).json(utils.postDataInvalido(postData));
         }
 
-        const r = await acuerdoDrhDAO.desactivarAdscripcion(postData, ejecutor);
+        const r = await acuerdoDrhDAO.desactivarAdscripcion(postData, ejecutor, sp.ipDe(req));
         return sp.responder(res, r, (x) => ({
             idEnlace: x.idEnlace !== undefined ? x.idEnlace : null,
             idUsuario: x.idUsuario !== undefined ? x.idUsuario : null
