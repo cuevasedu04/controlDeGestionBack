@@ -297,8 +297,12 @@ async function consultarAgenda(postData, idUsuario) {
  *
  * SP_GESTIONAR_INSTRUCCION_ACUERDO( _accion, _idAcuerdo, _idInstruccion,
  *   _origen, _instruccion, _fechaCompromiso, _idAvance, _especificarAvance,
- *   _requiereReunion, _motivoNoAtendido, _idUsuarioEjecuta, _usuarioEjecuta,
- *   _ipOrigen )
+ *   _motivoNoAtendido, _idUsuarioEjecuta, _usuarioEjecuta, _ipOrigen )
+ *
+ * `_requiereReunion` se ELIMINO el 08/09/2026: la columna existia, nadie sabia
+ * que significaba y jamas se escribio un 1 en las 18 instrucciones que habia.
+ * Era el unico parametro del modulo que no venia ni del mapa operativo ni de
+ * los formatos de papel.
  *
  * PERMISOS — las tres acciones del mismo SP no son del mismo rol.
  *   REGISTRAR          -> roles 8 y 9 (Director adscrito / Enlace operativo)
@@ -321,7 +325,7 @@ async function consultarAgenda(postData, idUsuario) {
 /** Ejecuta el SP del módulo 3 y devuelve su fila de respuesta. */
 async function llamarInstruccion(accion, parametros, ejecutor) {
     const result = await db.query(
-        'CALL SP_GESTIONAR_INSTRUCCION_ACUERDO(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'CALL SP_GESTIONAR_INSTRUCCION_ACUERDO(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         parametros
     );
 
@@ -377,7 +381,7 @@ async function registrarInstruccion(p, ejecutor, ipOrigen) {
             // Sigue siendo OPCIONAL. Una instrucción puede quedar sin plazo si
             // en la reunión no se acordó, y para eso está ACTUALIZAR_PLAZO.
             sp.texto(p.fechaCompromiso),
-            null, null, null, null,     // avance, especificar, requiereReunion, motivoNoAtendido
+            null, null, null,           // avance, especificar, motivoNoAtendido
             ejecutor.idUsuario,
             ejecutor.nombreCompleto,
             ipOrigen
@@ -410,7 +414,7 @@ async function actualizarPlazoInstruccion(p, ejecutor, ipOrigen) {
             null,                       // _origen
             null,                       // _instruccion
             sp.texto(p.fechaCompromiso),
-            null, null, null, null,     // avance, especificar, requiereReunion, motivoNoAtendido
+            null, null, null,           // avance, especificar, motivoNoAtendido
             ejecutor.idUsuario,
             ejecutor.nombreCompleto,
             ipOrigen
@@ -447,7 +451,6 @@ async function actualizarAvanceInstruccion(p, ejecutor, ipOrigen) {
             null,                       // _fechaCompromiso: el plazo no se toca aquí
             sp.entero(p.idAvance),
             sp.texto(p.especificarAvance),
-            p.requiereReunion === null || p.requiereReunion === undefined ? null : (p.requiereReunion ? 1 : 0),
             sp.texto(p.motivoNoAtendido),
             ejecutor.idUsuario,
             ejecutor.nombreCompleto,
