@@ -164,6 +164,38 @@ async function consultarAcuerdos(req, res) {
 }
 
 /**
+ * Los acuerdos detrás de una cifra de «Movimientos» del reporte.
+ *
+ * Solo lee. El alcance lo resuelve el SP con el idUsuario del token: quien
+ * mande una unidad que no es la suya recibe la suya, no un error, porque
+ * para los roles 8 y 9 el parámetro simplemente se ignora.
+ */
+async function consultarAcuerdosPorMovimiento(req, res) {
+    try {
+        const ejecutor = await resolverEjecutor(req);
+        if (!ejecutor) return sesionInvalida(res);
+
+        const postData = req.body || {};
+        const data = await acuerdoDrhDAO.consultarAcuerdosPorMovimiento(
+            postData, ejecutor.idUsuario);
+
+        if (data.rechazo) {
+            winston.warn(`[Controller] consultarAcuerdosPorMovimiento rechazo: ${data.rechazo.message} | usuario=${ejecutor.idUsuario}`);
+            return sp.responder(res, data.rechazo, () => []);
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: "Consulta de acuerdos por movimiento exitosa.",
+            model: data.acuerdos
+        });
+    } catch (ex) {
+        winston.error(`[Controller] consultarAcuerdosPorMovimiento excepción: ${ex.message}`);
+        res.status(500).json(utils.errorGenerico(ex));
+    }
+}
+
+/**
  * Forma común del `model` de respuesta para las cuatro acciones de escritura.
  *
  * `idAcuerdoOrigen` solo trae valor en REABRIR modo NUEVO: es el acuerdo
@@ -1032,6 +1064,7 @@ module.exports = {
     marcarNotificacionLeida,
     consultarCatalogos,
     consultarAcuerdos,
+    consultarAcuerdosPorMovimiento,
     consultarDashboard,
     consultarHistorial,
     consultarAdscripciones,

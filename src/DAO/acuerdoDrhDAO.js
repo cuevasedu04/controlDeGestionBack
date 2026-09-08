@@ -145,6 +145,44 @@ async function consultarAcuerdos(postData, idUsuario) {
 }
 
 /**
+ * Los acuerdos que tuvieron cierto MOVIMIENTO dentro de un periodo.
+ *
+ * Es la lista detrás de las cifras de «Movimientos» del reporte, y no se
+ * puede deducir de `consultarAcuerdos`: un acuerdo no guarda cuándo lo
+ * autorizaron ni cuándo lo concluyeron, solo en qué estatus está HOY. El
+ * SP lo saca de la bitácora, con los mismos criterios con que el tablero
+ * cuenta esas cifras, para que la lista y el número coincidan siempre.
+ *
+ * La unidad se manda, pero para los roles 8 y 9 el SP la ignora y usa la
+ * suya: mandar otra no es una manera de ver acuerdos ajenos.
+ */
+async function consultarAcuerdosPorMovimiento(postData, idUsuario) {
+    try {
+        const result = await db.query(
+            'CALL SP_CONSULTAR_ACUERDOS_MOVIMIENTO(?, ?, ?, ?, ?)',
+            [
+                sp.texto(postData.movimiento),
+                sp.texto(postData.fechaInicio),
+                sp.texto(postData.fechaFin),
+                sp.entero(postData.idUnidadResponsable),
+                idUsuario
+            ]
+        );
+
+        const primero = result[0] || [];
+
+        if (sp.esRechazoDeConsulta(primero)) {
+            return { rechazo: JSON.parse(JSON.stringify(primero[0])) };
+        }
+
+        return { acuerdos: sp.filas(primero) };
+    } catch (ex) {
+        winston.error(`consultarAcuerdosPorMovimiento - Excepción: ${ex.message} | idUsuario=${idUsuario}`);
+        throw ex;
+    }
+}
+
+/**
  * SP_GESTIONAR_ACUERDO — módulo 1, las cuatro acciones de escritura.
  *
  * SP_GESTIONAR_ACUERDO( _accion, _idAcuerdo, _idUnidadResponsable, _idTema,
@@ -1160,6 +1198,7 @@ module.exports = {
     marcarNotificacionLeida,
     obtenerCatalogos,
     consultarAcuerdos,
+    consultarAcuerdosPorMovimiento,
     gestionarAcuerdo,
     gestionarCelebracion,
     consultarAgenda,

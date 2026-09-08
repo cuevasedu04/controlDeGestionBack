@@ -9,6 +9,8 @@ router.post("/consultarSesion",     token.validateToken, controller.consultarSes
 // Catálogos y consultas
 router.post("/consultarCatalogos",  token.validateToken, controller.consultarCatalogos);
 router.post("/consultarAcuerdos",   token.validateToken, controller.consultarAcuerdos);
+// La lista detrás de una cifra de «Movimientos» del reporte. Solo lee.
+router.post("/consultarAcuerdosPorMovimiento", token.validateToken, controller.consultarAcuerdosPorMovimiento);
 
 // Acuerdos — módulo 1
 router.post("/registrarAcuerdo",        token.validateToken, controller.registrarAcuerdo);
