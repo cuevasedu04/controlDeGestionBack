@@ -20,6 +20,8 @@ router.post("/descargarExpedientesMasivo", token.validateToken, controller.desca
 router.post("/verDocumento", token.validateToken, controller.verDocumento);
 router.post("/listarDocumentos", token.validateToken, controller.listarDocumentos);
 router.post("/cancelarAsunto", token.validateToken, controller.cancelarAsunto);
+router.post("/guardarComentarioDocumento", token.validateToken, controller.guardarComentarioDocumento);
+router.post("/consultarComentariosDocumentos", token.validateToken, controller.consultarComentariosDocumentos);
 
 module.exports = router;
 

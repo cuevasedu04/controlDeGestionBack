@@ -623,6 +623,72 @@ async function cancelarAsunto(postData) {
 
 
 
+/**
+ * Comentario de revisión de un documento del expediente (principal o anexo).
+ *
+ * Es UN comentario por documento y se sobrescribe al editarlo. Mandar el
+ * texto vacío lo borra. Quién puede escribirlo lo decide el SP —hoy solo el
+ * rol 2, Gestor—, no este DAO: así la regla vive en un solo lugar.
+ */
+async function guardarComentarioDocumento(postData) {
+    let response = {};
+    try {
+        if (!postData.idUsuario) {
+            winston.warn(`guardarComentarioDocumento - Intento con idUsuario nulo | documento: ${postData.idDocumentoAsunto}`);
+            return { status: 400, message: 'Sesión de usuario no válida. Por favor recarga la página e intenta de nuevo.' };
+        }
+
+        let sql = `CALL SP_GUARDAR_COMENTARIO_DOCUMENTO (
+            ?, ?, ?
+        )`;
+
+        let result = await db.query(sql, [
+            postData.idDocumentoAsunto,
+            postData.comentarioRevision,
+            postData.idUsuario
+        ]);
+
+        response = JSON.parse(JSON.stringify(result[0][0]));
+
+        if (response.status == 200) {
+            response.model = JSON.parse(JSON.stringify(result[1][0]));
+        } else {
+            winston.warn(`guardarComentarioDocumento - ${response.status} | ${response.message} | documento=${postData.idDocumentoAsunto} | usuario=${postData.idUsuario}`);
+        }
+        return response;
+    } catch (ex) {
+        winston.error(`guardarComentarioDocumento - Excepción: ${ex.message} | documento=${postData.idDocumentoAsunto}`);
+        throw ex;
+    }
+}
+
+/**
+ * Los comentarios de TODOS los documentos de un asunto, de una sola llamada.
+ * El front los cruza contra el expediente por idDocumentoAsunto.
+ *
+ * Va aparte de consultarExpedienteAsunto a propósito: así no se tocó
+ * SP_CONSULTAR_EXPEDIENTE_ASUNTO, que ya funciona.
+ */
+async function consultarComentariosDocumentos(postData) {
+    let response = {};
+    try {
+
+        let sql = `CALL SP_CONSULTAR_COMENTARIOS_DOCUMENTOS (
+            ?
+        )`;
+
+        let result = await db.query(sql, [postData.idAsunto]);
+        response = JSON.parse(JSON.stringify(result[0][0]));
+
+        if (response.status == 200) {
+            response.model = JSON.parse(JSON.stringify(result[1]));
+        }
+        return response;
+    } catch (ex) {
+        throw ex;
+    }
+}
+
 module.exports = {
     registrarAsunto,
     consultarAsuntosUR,
@@ -637,7 +703,9 @@ module.exports = {
     editarAsunto,
     cancelarAsunto,
     consultarHistorial,
-    obtenerIdTurnadosPermitidos
+    obtenerIdTurnadosPermitidos,
+    guardarComentarioDocumento,
+    consultarComentariosDocumentos
 
 }
 async function almacenaListaArchivos(list, directorioAnexos, directoryBd, idUsuarioRegistra, idAsunto) {
