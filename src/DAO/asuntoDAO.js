@@ -484,7 +484,35 @@ async function agregarAnexos(postData) {
         };
     }
 }
+async function agregarAntecedentes(postData) {
+    let response = {};
+    try {
+        const directorioAntecedentes = path.resolve(`./src/documentos/Asuntos/Asunto-${postData.folio}/Antecedentes`);
+        utils.ensureDirectoryExistsSync(directorioAntecedentes);
+        const directoryBdAntecedentes = `documentos/Asuntos/Asunto-${postData.folio}/Antecedentes`;
 
+        if (Array.isArray(postData.antecedentes) && postData.antecedentes.length > 0) {
+            const antecedentesResult = await almacenaListaArchivos(
+                postData.antecedentes,
+                directorioAntecedentes,
+                directoryBdAntecedentes,
+                postData.idUsuarioRegistra,
+                postData.idAsunto
+            );
+            response = antecedentesResult[0];
+        } else {
+            response = [];
+        }
+
+        return response;
+    } catch (ex) {
+        console.error("Error al agregar los antecedentes:", ex);
+        return {
+            status: -1,
+            message: "Ocurrió un error interno, contactar a soporte técnico."
+        };
+    }
+}
 async function concluirAsunto(postData) {
     let response = {};
     const archivosGuardados = [];
@@ -704,6 +732,7 @@ module.exports = {
     cancelarAsunto,
     consultarHistorial,
     obtenerIdTurnadosPermitidos,
+    agregarAntecedentes,
     guardarComentarioDocumento,
     consultarComentariosDocumentos
 
