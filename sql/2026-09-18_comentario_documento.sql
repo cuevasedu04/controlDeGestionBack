@@ -7,9 +7,12 @@
 -- Es UN comentario por documento, editable: al guardar se sobrescribe.
 -- Guardar el texto vacío borra el comentario.
 --
--- Quién puede escribir: solo el rol 2 (Gestor). Se valida en el SP
--- además de en el front. Para permitir más roles, agrégalos al IN (2)
--- de SP_GUARDAR_COMENTARIO_DOCUMENTO — es el único lugar que cambiar.
+-- Quién puede escribir: los roles 1 (Admin) y 2 (Gestor). Se valida en el
+-- SP además de en el front. Para permitir más roles, agrégalos al IN de
+-- SP_GUARDAR_COMENTARIO_DOCUMENTO — es el único lugar que cambiar.
+--
+-- El 2026-09-24 se sumó el Admin: podía subir antecedentes pero no
+-- comentarlos, y la asimetría no tenía razón de ser.
 --
 -- Se llama comentarioRevision y es TEXT para igualar la columna que ya
 -- existe en sadrh_tbl_documento_acuerdo del módulo SADRH, que resuelve
@@ -93,10 +96,10 @@ BEGIN
         SELECT 401 AS status,
                'Sesión de usuario no válida.' AS message;
 
-    -- Solo el Gestor comenta. Agrega roles a este IN si eso cambia.
-    ELSEIF _rolUsuario NOT IN (2) THEN
+    -- Comentan el Admin y el Gestor. Agrega roles a este IN si eso cambia.
+    ELSEIF _rolUsuario NOT IN (1, 2) THEN
         SELECT 403 AS status,
-               'Solo el personal de Control de Gestión puede comentar documentos.' AS message;
+               'No tiene permiso para comentar documentos.' AS message;
 
     ELSE
         START TRANSACTION;
