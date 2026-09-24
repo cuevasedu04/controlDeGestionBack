@@ -645,14 +645,20 @@ async function editarAsuntoCompleto(postData) {
             ?,?,?,?,?,
             ?,?,?,?,?,
             ?,?,?,?,?,
-            ?,?
+            ?,?,?,?,?,
+            ?,?,?
         )`;
 
         let result = await db.query(sql, [
             postData.idAsunto,
             postData.idTipoDocumento,
             postData.noOficio,
+            postData.esVolante,
+            postData.numeroVolante,
+            postData.esGuia,
+            postData.numeroGuia,
             sanitizarFecha(postData.fechaDocumento),
+            sanitizarFecha(postData.fechaRecepcion),
             postData.remitenteNombre,
             postData.remitenteCargo,
             postData.remitenteDependencia,
@@ -663,6 +669,7 @@ async function editarAsuntoCompleto(postData) {
             postData.idTema,
             sanitizarFecha(postData.fechaCumplimiento),
             postData.idMedio,
+            postData.idPrioridad,
             postData.observaciones,
             postData.idUsuarioModifica,
             postData.ipOrigen

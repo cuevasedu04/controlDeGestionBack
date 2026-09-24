@@ -14,8 +14,23 @@
 --      significado reescribirlo a ciegas.
 --
 -- Deja rastro en scg_tbl_hist_asuntos_registrados como ASUNTO_EDITADO, con
--- el antes, el después, el usuario y la IP. Esto importa porque ahora se
--- pueden editar asuntos ya Concluidos: nada se cambia en silencio.
+-- el antes, el después, el usuario y la IP. Esto importa porque se pueden
+-- editar asuntos ya Concluidos: nada se cambia en silencio.
+--
+-- RECIBE EXACTAMENTE LOS CAMPOS QUE LA PANTALLA DEJA EDITAR. Tres quedan
+-- fuera a propósito:
+--
+--   · idStatusAsunto  — el estado se mueve por sus propios flujos
+--                       (concluir, cancelar, turnar), que exigen documento
+--                       y validaciones. Abrirlo aquí permitiría marcar
+--                       «Concluido» sin conclusión.
+--   · folio           — es el consecutivo oficial y no se muestra en la
+--                       pantalla de detalle. No se edita lo que no se ve.
+--   · idUnidadAdministrativa — su id y su texto están desalineados en los
+--                       datos: el asunto guarda «Recursos Humanos» con id 1,
+--                       pero en el catálogo el id 1 es «Agencia Nacional de
+--                       Aduanas de México». Sincronizarlo aquí cambiaría el
+--                       texto de todos los asuntos sin que nadie lo pida.
 --
 -- Aplicar en: scg_db_backup (y en scg_db cuando se libere).
 -- Es idempotente: se puede correr varias veces.
@@ -27,7 +42,12 @@ CREATE PROCEDURE SP_EDITAR_ASUNTO_COMPLETO (
     IN _idAsunto             BIGINT,
     IN _idTipoDocumento      INT,
     IN _noOficio             VARCHAR(255),
+    IN _esVolante            TINYINT,
+    IN _numeroVolante        VARCHAR(255),
+    IN _esGuia               TINYINT,
+    IN _numeroGuia           VARCHAR(255),
     IN _fechaDocumento       DATETIME,
+    IN _fechaRecepcion       DATETIME,
     IN _remitenteNombre      VARCHAR(255),
     IN _remitenteCargo       VARCHAR(255),
     IN _remitenteDependencia VARCHAR(255),
@@ -38,6 +58,7 @@ CREATE PROCEDURE SP_EDITAR_ASUNTO_COMPLETO (
     IN _idTema               INT,
     IN _fechaCumplimiento    DATETIME,
     IN _idMedio              INT,
+    IN _idPrioridad          INT,
     IN _observaciones        TEXT,
     IN _idUsuarioModifica    INT,
     IN _ipOrigen             VARCHAR(45)
@@ -56,6 +77,7 @@ BEGIN
     DECLARE _txtTipoDoc VARCHAR(255) DEFAULT NULL;
     DECLARE _txtTema    VARCHAR(255) DEFAULT NULL;
     DECLARE _txtMedio   VARCHAR(255) DEFAULT NULL;
+    DECLARE _txtPrior   VARCHAR(255) DEFAULT NULL;
 
     DECLARE EXIT HANDLER FOR SQLEXCEPTION
     BEGIN
@@ -91,20 +113,26 @@ BEGIN
                'No tiene permiso para editar la información del asunto.' AS message;
 
     ELSE
-        -- Los textos de catálogo. Si el id no existe se queda en NULL y se
-        -- conserva el valor anterior más abajo.
+        -- Los textos de catálogo. Si el id no existe se queda en NULL y más
+        -- abajo se conserva el valor anterior.
         SELECT tipoDocumento  INTO _txtTipoDoc FROM scg_cat_tipo_documento  WHERE idTipoDocumento  = _idTipoDocumento LIMIT 1;
         SELECT tema           INTO _txtTema    FROM scg_cat_tema            WHERE idTema           = _idTema          LIMIT 1;
         SELECT medioRecepcion INTO _txtMedio   FROM scg_cat_medio_recepcion WHERE idMedioRecepcion = _idMedio         LIMIT 1;
+        SELECT prioridad      INTO _txtPrior   FROM scg_cat_prioridad       WHERE idPrioridad      = _idPrioridad     LIMIT 1;
 
-        -- Foto del antes, en el mismo formato de tubería que ya usa la
-        -- bitácora para los registros.
+        -- Foto del antes. Solo los campos que este procedimiento puede
+        -- cambiar: así el antes y el después se comparan renglón a renglón.
         SELECT folio,
                statusAsunto,
                CONCAT_WS(' | ',
                    CONCAT('TipoDoc: ',              IFNULL(tipoDocumento, '')),
                    CONCAT('NoOficio: ',             IFNULL(noOficio, '')),
+                   CONCAT('EsVolante: ',            IF(IFNULL(esVolante, 0) = 1, 'Sí', 'No')),
+                   CONCAT('NumeroVolante: ',        IFNULL(numeroVolante, '')),
+                   CONCAT('EsGuia: ',               IF(IFNULL(esGuia, 0) = 1, 'Sí', 'No')),
+                   CONCAT('NumeroGuia: ',           IFNULL(numeroGuia, '')),
                    CONCAT('FechaDocumento: ',       IFNULL(fechaDocumento, '')),
+                   CONCAT('FechaRecepcion: ',       IFNULL(fechaRecepcion, '')),
                    CONCAT('RemitenteNombre: ',      IFNULL(remitenteNombre, '')),
                    CONCAT('RemitenteCargo: ',       IFNULL(remitenteCargo, '')),
                    CONCAT('RemitenteDependencia: ', IFNULL(remitenteDependencia, '')),
@@ -115,6 +143,7 @@ BEGIN
                    CONCAT('Tema: ',                 IFNULL(Tema, '')),
                    CONCAT('FechaCumplimiento: ',    IFNULL(fechaCumplimiento, '')),
                    CONCAT('Medio: ',                IFNULL(medio, '')),
+                   CONCAT('Prioridad: ',            IFNULL(prioridad, '')),
                    CONCAT('Observaciones: ',        IFNULL(observaciones, ''))
                )
           INTO _folio, _status, _antes
@@ -127,7 +156,14 @@ BEGIN
            SET idTipoDocumento      = IFNULL(_idTipoDocumento, idTipoDocumento),
                tipoDocumento        = IFNULL(_txtTipoDoc, tipoDocumento),
                noOficio             = IFNULL(_noOficio, noOficio),
+               esVolante            = IFNULL(_esVolante, esVolante),
+               -- El número solo tiene sentido si la casilla está marcada;
+               -- al desmarcarla se limpia, como en el alta.
+               numeroVolante        = IF(IFNULL(_esVolante, esVolante) = 1, _numeroVolante, NULL),
+               esGuia               = IFNULL(_esGuia, esGuia),
+               numeroGuia           = IF(IFNULL(_esGuia, esGuia) = 1, _numeroGuia, NULL),
                fechaDocumento       = _fechaDocumento,
+               fechaRecepcion       = _fechaRecepcion,
                remitenteNombre      = _remitenteNombre,
                remitenteCargo       = _remitenteCargo,
                remitenteDependencia = _remitenteDependencia,
@@ -140,6 +176,8 @@ BEGIN
                fechaCumplimiento    = _fechaCumplimiento,
                idMedio              = IFNULL(_idMedio, idMedio),
                medio                = IFNULL(_txtMedio, medio),
+               idPrioridad          = IFNULL(_idPrioridad, idPrioridad),
+               prioridad            = IFNULL(_txtPrior, prioridad),
                observaciones        = _observaciones,
                idUsuarioModifica    = _idUsuarioModifica,
                `fechaModificación`  = CURRENT_TIMESTAMP
@@ -149,7 +187,12 @@ BEGIN
         SELECT CONCAT_WS(' | ',
                    CONCAT('TipoDoc: ',              IFNULL(tipoDocumento, '')),
                    CONCAT('NoOficio: ',             IFNULL(noOficio, '')),
+                   CONCAT('EsVolante: ',            IF(IFNULL(esVolante, 0) = 1, 'Sí', 'No')),
+                   CONCAT('NumeroVolante: ',        IFNULL(numeroVolante, '')),
+                   CONCAT('EsGuia: ',               IF(IFNULL(esGuia, 0) = 1, 'Sí', 'No')),
+                   CONCAT('NumeroGuia: ',           IFNULL(numeroGuia, '')),
                    CONCAT('FechaDocumento: ',       IFNULL(fechaDocumento, '')),
+                   CONCAT('FechaRecepcion: ',       IFNULL(fechaRecepcion, '')),
                    CONCAT('RemitenteNombre: ',      IFNULL(remitenteNombre, '')),
                    CONCAT('RemitenteCargo: ',       IFNULL(remitenteCargo, '')),
                    CONCAT('RemitenteDependencia: ', IFNULL(remitenteDependencia, '')),
@@ -160,6 +203,7 @@ BEGIN
                    CONCAT('Tema: ',                 IFNULL(Tema, '')),
                    CONCAT('FechaCumplimiento: ',    IFNULL(fechaCumplimiento, '')),
                    CONCAT('Medio: ',                IFNULL(medio, '')),
+                   CONCAT('Prioridad: ',            IFNULL(prioridad, '')),
                    CONCAT('Observaciones: ',        IFNULL(observaciones, ''))
                )
           INTO _despues
@@ -181,9 +225,12 @@ BEGIN
                'Los cambios del asunto se guardaron.' AS message;
 
         SELECT idAsunto, folio, idTipoDocumento, tipoDocumento, noOficio,
-               fechaDocumento, remitenteNombre, remitenteCargo, remitenteDependencia,
+               esVolante, numeroVolante, esGuia, numeroGuia,
+               fechaDocumento, fechaRecepcion,
+               remitenteNombre, remitenteCargo, remitenteDependencia,
                dirigidoA, dirigidoACargo, dirigidoADependencia, descripcionAsunto,
-               idTema, Tema, fechaCumplimiento, idMedio, medio, observaciones,
+               idTema, Tema, fechaCumplimiento, idMedio, medio,
+               idPrioridad, prioridad, observaciones,
                idStatusAsunto, statusAsunto
           FROM scg_tbl_asunto
          WHERE idAsunto = _idAsunto;
