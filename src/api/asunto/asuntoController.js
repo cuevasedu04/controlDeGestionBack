@@ -402,6 +402,26 @@ async function editarAsuntoCompleto(req, res) {
     }
 }
 
+async function buscarAsuntos(req, res) {
+    try {
+        const postData = req.body;
+            let data = await asuntoDAO.buscarAsuntos(postData);
+            return res.status(200).json(data);
+    } catch (ex) {
+        res.status(500).json(utils.errorGenerico(ex));
+    }
+}
+
+async function gestionarAlcance(req, res) {
+    try {
+        const postData = req.body;
+            let data = await asuntoDAO.gestionarAlcance({ ...postData, ipOrigen: ipDe(req) });
+            return res.status(200).json(data);
+    } catch (ex) {
+        res.status(500).json(utils.errorGenerico(ex));
+    }
+}
+
 module.exports = {
     registrarAsunto,
     consultarAsuntosUR,
@@ -423,5 +443,7 @@ module.exports = {
     cancelarAsunto,
     guardarComentarioDocumento,
     consultarComentariosDocumentos,
-    editarAsuntoCompleto
+    editarAsuntoCompleto,
+    buscarAsuntos,
+    gestionarAlcance
 }

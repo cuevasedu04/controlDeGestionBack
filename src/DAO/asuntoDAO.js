@@ -782,6 +782,89 @@ async function consultarComentariosDocumentos(postData) {
     }
 }
 
+/**
+ * Buscador de asuntos para el modal del alcance: oficio, descripcion,
+ * volante o folio.
+ *
+ * Busca en el servidor y no en el navegador porque la tabla ronda los 6,700
+ * asuntos y el modal no necesita traerlos todos.
+ */
+async function buscarAsuntos(postData) {
+    let response = {};
+    try {
+
+        let sql = `CALL SP_BUSCAR_ASUNTOS (
+            ?, ?, ?
+        )`;
+
+        let result = await db.query(sql, [
+            postData.termino,
+            postData.idExcluir || null,
+            postData.limite || 50
+        ]);
+
+        response = JSON.parse(JSON.stringify(result[0][0]));
+
+        if (response.status == 200) {
+            response.model = JSON.parse(JSON.stringify(result[1]));
+        }
+        return response;
+    } catch (ex) {
+        throw ex;
+    }
+}
+
+/**
+ * Alcance entre asuntos, en un solo procedimiento con parametro de accion
+ * —el patron que ya usa SADRH con SP_GESTIONAR_ACUERDO—.
+ *
+ *   CONSULTAR    devuelve las dos direcciones: de donde viene y que lo continua
+ *   VINCULAR     enlaza este asunto con su origen
+ *   DESVINCULAR  quita el enlace
+ *
+ * Quien puede escribir lo decide el SP, no este DAO: hoy los roles 1 y 2.
+ */
+async function gestionarAlcance(postData) {
+    let response = {};
+    try {
+        const accion = String(postData.accion || '').toUpperCase();
+
+        if (accion !== 'CONSULTAR' && !postData.idUsuario) {
+            winston.warn(`gestionarAlcance ${accion} - Intento con idUsuario nulo | asunto: ${postData.idAsunto}`);
+            return { status: 400, message: 'Sesion de usuario no valida. Por favor recarga la pagina e intenta de nuevo.' };
+        }
+
+        let sql = `CALL SP_GESTIONAR_ALCANCE (
+            ?, ?, ?, ?, ?
+        )`;
+
+        let result = await db.query(sql, [
+            accion,
+            postData.idAsunto,
+            postData.idAsuntoOrigen || null,
+            postData.idUsuario,
+            postData.ipOrigen
+        ]);
+
+        response = JSON.parse(JSON.stringify(result[0][0]));
+
+        if (response.status == 200 && accion === 'CONSULTAR') {
+            // El SP responde las dos direcciones por separado para que la
+            // pantalla no tenga que deducir cual es cual.
+            response.model = {
+                origen: JSON.parse(JSON.stringify(result[1]))[0] || null,
+                alcances: JSON.parse(JSON.stringify(result[2]))
+            };
+        } else if (response.status != 200) {
+            winston.warn(`gestionarAlcance ${accion} - ${response.status} | ${response.message} | asunto=${postData.idAsunto}`);
+        }
+        return response;
+    } catch (ex) {
+        winston.error(`gestionarAlcance - Excepcion: ${ex.message} | asunto=${postData.idAsunto}`);
+        throw ex;
+    }
+}
+
 module.exports = {
     registrarAsunto,
     consultarAsuntosUR,
@@ -800,7 +883,9 @@ module.exports = {
     agregarAntecedentes,
     guardarComentarioDocumento,
     consultarComentariosDocumentos,
-    editarAsuntoCompleto
+    editarAsuntoCompleto,
+    buscarAsuntos,
+    gestionarAlcance
 
 }
 async function almacenaListaArchivos(list, directorioAnexos, directoryBd, idUsuarioRegistra, idAsunto) {

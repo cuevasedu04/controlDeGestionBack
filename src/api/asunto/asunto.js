@@ -24,6 +24,8 @@ router.post("/cancelarAsunto", token.validateToken, controller.cancelarAsunto);
 router.post("/guardarComentarioDocumento", token.validateToken, controller.guardarComentarioDocumento);
 router.post("/consultarComentariosDocumentos", token.validateToken, controller.consultarComentariosDocumentos);
 router.post("/editarAsuntoCompleto", token.validateToken, controller.editarAsuntoCompleto);
+router.post("/buscarAsuntos", token.validateToken, controller.buscarAsuntos);
+router.post("/gestionarAlcance", token.validateToken, controller.gestionarAlcance);
 
 module.exports = router;
 
