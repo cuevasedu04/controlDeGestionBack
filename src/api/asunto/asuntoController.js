@@ -378,6 +378,30 @@ async function consultarComentariosDocumentos(req, res) {
     }
 }
 
+/**
+ * La IP real de quien pide, respetando el proxy si lo hay.
+ * Mismo criterio que usa el modulo de acuerdos, para que la bitacora
+ * guarde el dato igual en todo el sistema.
+ */
+function ipDe(req) {
+    const cabecera = req.headers['x-forwarded-for'];
+    const ip = (cabecera ? String(cabecera).split(',')[0] : null)
+        || req.ip
+        || (req.connection && req.connection.remoteAddress)
+        || '127.0.0.1';
+    return String(ip).replace('::ffff:', '').substring(0, 45);
+}
+
+async function editarAsuntoCompleto(req, res) {
+    try {
+        const postData = req.body;
+            let data = await asuntoDAO.editarAsuntoCompleto({ ...postData, ipOrigen: ipDe(req) });
+            return res.status(200).json(data);
+    } catch (ex) {
+        res.status(500).json(utils.errorGenerico(ex));
+    }
+}
+
 module.exports = {
     registrarAsunto,
     consultarAsuntosUR,
@@ -398,5 +422,6 @@ module.exports = {
     listarDocumentos,
     cancelarAsunto,
     guardarComentarioDocumento,
-    consultarComentariosDocumentos
+    consultarComentariosDocumentos,
+    editarAsuntoCompleto
 }

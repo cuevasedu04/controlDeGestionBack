@@ -624,6 +624,64 @@ async function editarAsunto(postData) {
     }
 }
 
+/**
+ * Edicion completa de la informacion general de un asunto.
+ *
+ * Hermana de editarAsunto, no su reemplazo: el SP viejo se queda intacto.
+ * Este llama a SP_EDITAR_ASUNTO_COMPLETO, que ademas de guardar
+ * dirigidoADependencia -que el viejo perdia- deja rastro en la bitacora.
+ *
+ * Quien puede editar lo decide el SP, no este DAO: hoy los roles 1 y 2.
+ */
+async function editarAsuntoCompleto(postData) {
+    let response = {};
+    try {
+        if (!postData.idUsuarioModifica) {
+            winston.warn(`editarAsuntoCompleto - Intento con idUsuarioModifica nulo | asunto: ${postData.idAsunto}`);
+            return { status: 400, message: 'Sesion de usuario no valida. Por favor recarga la pagina e intenta de nuevo.' };
+        }
+
+        let sql = `CALL SP_EDITAR_ASUNTO_COMPLETO (
+            ?,?,?,?,?,
+            ?,?,?,?,?,
+            ?,?,?,?,?,
+            ?,?
+        )`;
+
+        let result = await db.query(sql, [
+            postData.idAsunto,
+            postData.idTipoDocumento,
+            postData.noOficio,
+            sanitizarFecha(postData.fechaDocumento),
+            postData.remitenteNombre,
+            postData.remitenteCargo,
+            postData.remitenteDependencia,
+            postData.dirigidoA,
+            postData.dirigidoACargo,
+            postData.dirigidoADependencia,
+            postData.descripcionAsunto,
+            postData.idTema,
+            sanitizarFecha(postData.fechaCumplimiento),
+            postData.idMedio,
+            postData.observaciones,
+            postData.idUsuarioModifica,
+            postData.ipOrigen
+        ]);
+
+        response = JSON.parse(JSON.stringify(result[0][0]));
+
+        if (response.status == 200) {
+            response.model = JSON.parse(JSON.stringify(result[1][0]));
+        } else {
+            winston.warn(`editarAsuntoCompleto - ${response.status} | ${response.message} | asunto=${postData.idAsunto} | usuario=${postData.idUsuarioModifica}`);
+        }
+        return response;
+    } catch (ex) {
+        winston.error(`editarAsuntoCompleto - Excepcion: ${ex.message} | asunto=${postData.idAsunto}`);
+        throw ex;
+    }
+}
+
 async function cancelarAsunto(postData) {
     let response = {};
     try {
@@ -734,7 +792,8 @@ module.exports = {
     obtenerIdTurnadosPermitidos,
     agregarAntecedentes,
     guardarComentarioDocumento,
-    consultarComentariosDocumentos
+    consultarComentariosDocumentos,
+    editarAsuntoCompleto
 
 }
 async function almacenaListaArchivos(list, directorioAnexos, directoryBd, idUsuarioRegistra, idAsunto) {

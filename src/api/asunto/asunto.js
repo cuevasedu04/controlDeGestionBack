@@ -23,6 +23,7 @@ router.post("/listarDocumentos", token.validateToken, controller.listarDocumento
 router.post("/cancelarAsunto", token.validateToken, controller.cancelarAsunto);
 router.post("/guardarComentarioDocumento", token.validateToken, controller.guardarComentarioDocumento);
 router.post("/consultarComentariosDocumentos", token.validateToken, controller.consultarComentariosDocumentos);
+router.post("/editarAsuntoCompleto", token.validateToken, controller.editarAsuntoCompleto);
 
 module.exports = router;
 
