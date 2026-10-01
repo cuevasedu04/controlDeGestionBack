@@ -47,6 +47,78 @@ async function alBuzon(idAcuerdo, tipo, titulo, mensaje) {
 }
 
 /**
+ * Avisa HACIA ARRIBA de un movimiento de la dirección.
+ *
+ * Los cinco avisos que existían iban todos de la DRH hacia la dirección: los
+ * roles 6 y 7 no recibían ninguno, y para enterarse de que una dirección pidió
+ * un acuerdo o reportó un avance había que entrar a mirar.
+ *
+ * SOLO SI LO HIZO LA DIRECCIÓN. Desde el 10/09/2026 la DRH también captura
+ * instrucciones, y adjuntar un documento tampoco es exclusivo de nadie; si la
+ * propia DRH mueve algo, avisarle de su propio movimiento sería ruido, y el
+ * ruido es lo que enseña a ignorar un buzón.
+ *
+ * Va por los DOS caminos y con el mismo texto, como los otros cinco: son el
+ * mismo aviso, y con el SMTP caído —como hoy— el buzón es el único que queda.
+ *
+ * Y como los otros cinco: fuera del camino de la petición y tragándose sus
+ * excepciones. Un correo no tumba una operación que el SP ya confirmó.
+ */
+function avisarALaDRH({ tipo, ejecutor, idAcuerdo, idInstruccion, folio, tipoBuzon,
+                        que, mensaje, detalle }) {
+    if (![8, 9].includes(Number(ejecutor && ejecutor.idUsuarioRol))) return;
+
+    avisar(async () => {
+        // El acuerdo puede llegar por su id o por el de una instrucción suya:
+        // `SP_GESTIONAR_INSTRUCCION_ACUERDO` no devuelve a cuál pertenece, así
+        // que el avance manda la instrucción y aquí se resuelve. Sin esto el
+        // aviso se quedaba callado sin decir por qué.
+        let id = sp.entero(idAcuerdo);
+        let elFolio = folio;
+
+        if (!id && idInstruccion) {
+            const suyo = await acuerdoDrhDAO.acuerdoDeInstruccion(idInstruccion);
+            if (suyo) { id = Number(suyo.idAcuerdo); elFolio = elFolio || suyo.folio; }
+        }
+
+        if (!id) {
+            winston.warn(`[Controller] ${tipo}: no se pudo resolver el acuerdo`);
+            return;
+        }
+
+        const arriba = await acuerdoDrhDAO.drhANotificar();
+        if (!arriba.ids.length) {
+            winston.warn(`[Controller] ${tipo}: no hay DRH ni CO activos a quien avisar`);
+            return;
+        }
+
+        // El título lo arma el ayudante y no cada sitio: solo aquí se sabe
+        // qué folio salió, porque el del avance hubo que ir a buscarlo.
+        const titulo = elFolio ? `${que} en ${elFolio}` : que;
+
+        // Una fila por persona: leer es cosa de cada quien, y que la DRH lo
+        // marque no se lo puede marcar a su Contacto Operativo.
+        for (const idUsuario of arriba.ids) {
+            await acuerdoDrhDAO.registrarNotificacion(idUsuario, id, tipoBuzon, titulo, mensaje);
+        }
+
+        const d = await acuerdoDrhDAO.destinatariosDeAcuerdo(id);
+
+        correo.movimientoDeLaDireccion({
+            tipo,
+            para: arriba.para,
+            copia: arriba.copia,
+            folio: elFolio || (d && d.folio),
+            tema: d && d.tema,
+            descripcion: d && d.descripcionEjecutiva,
+            direccion: ejecutor.unidadResponsable,
+            quien: ejecutor.nombreCompleto,
+            detalle
+        });
+    });
+}
+
+/**
  * Resuelve al ejecutor de la petición.
  *
  * Del token se lee ÚNICAMENTE idUsuario. El rol, la unidad y el nombre se
@@ -259,6 +331,31 @@ async function ejecutarAccionAcuerdo(req, res, accion, etiqueta) {
         // El rechazo del FADRH se avisa por correo. A diferencia del rechazo
         // de documento, este SP no devuelve `correoDestino`, así que los
         // destinatarios se resuelven aquí a partir del acuerdo.
+        // EL ACUERDO NUEVO, avisado hacia arriba. Es el único de los cuatro
+        // que pide algo: hasta que la DRH lo revise y le dé fecha, no avanza.
+        //
+        // Solo REGISTRAR y REGISTRAR_URGENTE: `ACTUALIZAR` es una corrección
+        // de algo que ella ya tenía en su cola, y `REABRIR` lo hace ella.
+        if (['REGISTRAR', 'REGISTRAR_URGENTE'].includes(accion) &&
+            Number(respuesta.status) === 200 &&
+            !/^Error/i.test(respuesta.message || '')) {
+            avisarALaDRH({
+                tipo: 'acuerdoSolicitado',
+                ejecutor,
+                idAcuerdo: respuesta.idAcuerdo,
+                folio: respuesta.folio,
+                tipoBuzon: 'ACUERDO_SOLICITADO',
+                // «Acuerdo nuevo en DO-2026-0616» y no «Acuerdo nuevo para
+                // revisar en DO-...», que al pegarle el folio quedaba torcido.
+                // El «para revisar» vive en el mensaje, que es donde se lee.
+                que: 'Acuerdo nuevo',
+                mensaje: `${ejecutor.unidadResponsable || 'Una dirección'} registró `
+                       + `un acuerdo y espera su revisión.`
+                       + `\n\nLo hizo: ${ejecutor.nombreCompleto}.`,
+                detalle: null
+            });
+        }
+
         if (accion === 'RECHAZAR' && Number(respuesta.status) === 200 &&
             !/^Error/i.test(respuesta.message || '')) {
             avisar(async () => {
@@ -652,6 +749,24 @@ async function actualizarAvanceInstruccion(req, res) {
         }
 
         const r = await acuerdoDrhDAO.actualizarAvanceInstruccion(postData, ejecutor, sp.ipDe(req));
+
+        // El avance es lo que la dirección REPORTA de su trabajo, y es lo
+        // único que la DRH no puede mover: si no se le avisa, para saber cómo
+        // va una dirección tiene que entrar a mirar acuerdo por acuerdo.
+        if (Number(r.status) === 200 && !/^Error/i.test(r.message || '')) {
+            avisarALaDRH({
+                tipo: 'avanceReportado',
+                ejecutor,
+                idInstruccion: postData.idInstruccion,
+                tipoBuzon: 'AVANCE_REPORTADO',
+                que: 'Avance reportado',
+                mensaje: `${ejecutor.unidadResponsable || 'Una dirección'} movió el `
+                       + `avance de una instrucción.`
+                       + `\n\nLo hizo: ${ejecutor.nombreCompleto}.`,
+                detalle: sp.texto(postData.especificarAvance) || null
+            });
+        }
+
         return sp.responder(res, r, (x) => ({
             idInstruccion: sp.entero(postData.idInstruccion),
             idStatusAcuerdo: x.idStatusAcuerdo !== undefined ? x.idStatusAcuerdo : null,
@@ -860,6 +975,22 @@ async function registrarDocumento(req, res) {
         }
 
         const r = await acuerdoDrhDAO.registrarDocumento(postData, ejecutor, sp.ipDe(req));
+
+        if (Number(r.status) === 200 && !/^Error/i.test(r.message || '')) {
+            avisarALaDRH({
+                tipo: 'documentoAdjuntado',
+                ejecutor,
+                idAcuerdo: postData.idAcuerdo,
+                folio: r.folio,
+                tipoBuzon: 'DOCUMENTO_ADJUNTADO',
+                que: 'Documento nuevo',
+                mensaje: `${ejecutor.unidadResponsable || 'Una dirección'} adjuntó `
+                       + `un documento al acuerdo.`
+                       + `\n\nLo hizo: ${ejecutor.nombreCompleto}.`,
+                detalle: postData.nombreDocumento || null
+            });
+        }
+
         return sp.responder(res, r, datosDocumento);
     } catch (ex) {
         winston.error(`[Controller] registrarDocumento excepción: ${ex.message}`);
@@ -879,6 +1010,25 @@ async function reemplazarDocumento(req, res) {
         }
 
         const r = await acuerdoDrhDAO.reemplazarDocumento(postData, ejecutor, sp.ipDe(req));
+
+        // El que más falta hacía: la DRH devolvió un documento, la dirección
+        // lo corrigió, y ella no se enteraba de que ya podía volver a mirarlo.
+        if (Number(r.status) === 200 && !/^Error/i.test(r.message || '')) {
+            avisarALaDRH({
+                tipo: 'documentoReenviado',
+                ejecutor,
+                idAcuerdo: postData.idAcuerdo,
+                folio: r.folio,
+                tipoBuzon: 'DOCUMENTO_REENVIADO',
+                que: 'Documento corregido',
+                mensaje: `${ejecutor.unidadResponsable || 'Una dirección'} reenvió `
+                       + `corregido un documento que se le había devuelto. `
+                       + `Está otra vez por revisar.`
+                       + `\n\nLo hizo: ${ejecutor.nombreCompleto}.`,
+                detalle: postData.nombreDocumento || null
+            });
+        }
+
         return sp.responder(res, r, datosDocumento);
     } catch (ex) {
         winston.error(`[Controller] reemplazarDocumento excepción: ${ex.message}`);

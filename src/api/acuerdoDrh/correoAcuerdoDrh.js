@@ -361,10 +361,86 @@ function citaDeAcuerdo({ tipo, para, copia, folio, tema, descripcion, fecha, fec
     });
 }
 
+/**
+ * Lo que la DIRECCIÓN hizo, avisado HACIA ARRIBA.
+ *
+ * Los cinco avisos de arriba van todos de la DRH hacia la dirección. Estos
+ * cuatro van al revés: la DRH y su Contacto Operativo no recibían ninguno, y
+ * para enterarse de que una dirección pidió un acuerdo, adjuntó un documento
+ * o reportó un avance había que entrar a mirar.
+ *
+ * Los cuatro en UNA función y no en cuatro, igual que `citaDeAcuerdo`:
+ * comparten saludo, estructura y pie, y lo único que cambia es el asunto, la
+ * frase y el acento. Con cuatro funciones, cambiar el saludo sería acordarse
+ * de cuatro sitios.
+ *
+ * NINGUNO PIDE ACCIÓN INMEDIATA salvo el acuerdo nuevo, que sí espera
+ * revisión — por eso es el único con aviso al pie. Si los cuatro dijeran «hay
+ * que hacer algo», a la tercera semana no se leería ninguno.
+ */
+function movimientoDeLaDireccion({ tipo, para, copia, folio, tema, descripcion,
+                                   direccion, quien, detalle }) {
+    const textos = {
+        acuerdoSolicitado: {
+            asunto: `SADRH - Acuerdo nuevo para revisar: ${folio}`,
+            mensaje: "Una dirección <strong>registró un acuerdo</strong> y espera su revisión.",
+            aviso: "Mientras no se revise y se le asigne fecha, el acuerdo no avanza.",
+            acento: "#611232",
+            etiquetaDetalle: null,
+        },
+        documentoAdjuntado: {
+            asunto: `SADRH - Documento nuevo en ${folio}`,
+            mensaje: "Se <strong>adjuntó un documento</strong> al acuerdo.",
+            aviso: null,
+            acento: "#0D324D",
+            etiquetaDetalle: "Documento",
+        },
+        documentoReenviado: {
+            asunto: `SADRH - Documento corregido en ${folio}`,
+            mensaje: "La dirección <strong>reenvió corregido</strong> un documento " +
+                     "que se le había devuelto.",
+            aviso: null,
+            acento: "#C9A977",
+            etiquetaDetalle: "Documento",
+        },
+        avanceReportado: {
+            asunto: `SADRH - Avance reportado en ${folio}`,
+            mensaje: "La dirección <strong>movió el avance</strong> de una de sus instrucciones.",
+            aviso: null,
+            acento: "#007B5D",
+            etiquetaDetalle: "Avance",
+        },
+    }[tipo];
+
+    if (!textos) return false;
+
+    return enviar({
+        para, copia,
+        referencia: `movimiento ${tipo} ${folio}`,
+        asunto: textos.asunto,
+        html: plantilla({
+            saludo: "Estimado/a titular:",
+            mensaje: textos.mensaje,
+            folio,
+            acento: textos.acento,
+            datos: [
+                { etiqueta: "Dirección", valor: direccion },
+                { etiqueta: "Tema", valor: tema },
+                { etiqueta: "Acuerdo", valor: descripcion },
+                { etiqueta: textos.etiquetaDetalle,
+                  valor: textos.etiquetaDetalle ? detalle : null },
+                { etiqueta: "Lo hizo", valor: quien },
+            ],
+            aviso: textos.aviso,
+        }),
+    });
+}
+
 module.exports = {
     documentoRechazado,
     acuerdoRechazado,
     citaDeAcuerdo,
+    movimientoDeLaDireccion,
     // Se exportan para poder probarlas sin mandar nada.
     plantilla,
     envioActivo,

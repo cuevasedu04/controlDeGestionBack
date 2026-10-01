@@ -1119,6 +1119,75 @@ async function destinatariosDeAcuerdo(idAcuerdo) {
 }
 
 /**
+ * De qué ACUERDO es una instrucción.
+ *
+ * `SP_GESTIONAR_INSTRUCCION_ACUERDO` responde con el estatus del acuerdo pero
+ * no con su id ni su folio, así que el aviso a la DRH no sabría de cuál
+ * hablar. Se resuelve aquí en vez de ampliar el SP: es una consulta de una
+ * línea, corre fuera del camino de la petición, y cambiar la firma de un SP
+ * que cuatro pantallas ya usan cuesta más que esto.
+ */
+async function acuerdoDeInstruccion(idInstruccion) {
+    try {
+        const id = sp.entero(idInstruccion);
+        if (!id) return null;
+
+        const filas = await db.query(`
+            SELECT a.idAcuerdo, a.folio
+              FROM sadrh_tbl_instruccion_acuerdo i
+              INNER JOIN sadrh_tbl_acuerdo a ON a.idAcuerdo = i.idAcuerdo
+             WHERE i.idInstruccion = ? AND i.activo = 1
+             LIMIT 1`, [id]);
+
+        return filas && filas.length ? filas[0] : null;
+    } catch (ex) {
+        winston.error(`acuerdoDeInstruccion - Excepción: ${ex.message} | instruccion=${idInstruccion}`);
+        return null;
+    }
+}
+
+/**
+ * La DRH y su Contacto Operativo — los destinatarios HACIA ARRIBA.
+ *
+ * Los cinco avisos que existían iban todos de la DRH hacia la dirección; los
+ * roles 6 y 7 no recibían ninguno, así que para enterarse de que una
+ * dirección pidió un acuerdo o reportó un avance había que entrar a mirar.
+ *
+ * NO dependen del acuerdo: su alcance es global y no llevan adscripción. Por
+ * eso esto no recibe `idAcuerdo` — pedirlo sugeriría que el destinatario
+ * cambia según la dirección, y no cambia.
+ *
+ * Devuelve `{ para, copia, ids }`: el correo necesita direcciones y el buzón
+ * necesita ids. Van juntos porque es la misma gente y resolverlo dos veces
+ * sería consultar dos veces lo mismo.
+ */
+async function drhANotificar() {
+    try {
+        // `db.query` sobre un SELECT plano devuelve las filas DIRECTAMENTE, no
+        // envueltas en conjuntos como un CALL.
+        const gente = await db.query(`
+            SELECT idUsuario, correo, idUsuarioRol
+              FROM scg_tbl_usuario
+             WHERE activo = 1 AND idUsuarioRol IN (6, 7)
+             ORDER BY idUsuarioRol`);
+
+        const filas = gente || [];
+        const correos = filas.map((x) => x.correo).filter(Boolean);
+
+        // La DRH (6) encabeza y el CO (7) va en copia: el orden lo da el
+        // ORDER BY, no el azar de la tabla.
+        return {
+            para: correos[0] || null,
+            copia: correos.slice(1),
+            ids: filas.map((x) => x.idUsuario)
+        };
+    } catch (ex) {
+        winston.error(`drhANotificar - Excepción: ${ex.message}`);
+        return { para: null, copia: [], ids: [] };
+    }
+}
+
+/**
  * A quién se le avisa, pero con `idUsuario` además del correo.
  *
  * El buzón necesita ids, no direcciones. Se resuelve aparte de
@@ -1225,6 +1294,8 @@ async function marcarNotificacionLeida(postData, idUsuario) {
 module.exports = {
     obtenerEjecutor,
     destinatariosDeAcuerdo,
+    drhANotificar,
+    acuerdoDeInstruccion,
     usuariosANotificar,
     registrarNotificacion,
     consultarNotificaciones,
