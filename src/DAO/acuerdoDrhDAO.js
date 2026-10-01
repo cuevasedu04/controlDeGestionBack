@@ -183,6 +183,39 @@ async function consultarAcuerdosPorMovimiento(postData, idUsuario) {
 }
 
 /**
+ * SP_CONSULTAR_REUNIONES_RECIENTES — las reuniones que ya ocurrieron.
+ *
+ * Un renglón por ACUERDO, de la reunión más reciente a la más antigua. Es la
+ * lista para VOLVER a un acuerdo que acaba de celebrarse: al finalizar la
+ * reunión el acuerdo pasa a Celebrado y sale de la bandeja, del tablero y de
+ * la agenda del mes.
+ *
+ * `cuantas` dice cuántas devolver; el SP usa 8 si no llega y nunca pasa de 50.
+ *
+ * El alcance lo aplica el SP: los roles 8 y 9 ven solo su dirección y falla
+ * cerrado si no se les puede resolver. Aquí no se filtra nada.
+ */
+async function consultarReunionesRecientes(postData, idUsuario) {
+    try {
+        const result = await db.query(
+            'CALL SP_CONSULTAR_REUNIONES_RECIENTES(?, ?)',
+            [sp.entero(postData.cuantas), idUsuario]
+        );
+
+        const primero = result[0] || [];
+
+        if (sp.esRechazoDeConsulta(primero)) {
+            return { rechazo: JSON.parse(JSON.stringify(primero[0])) };
+        }
+
+        return { acuerdos: sp.filas(primero) };
+    } catch (ex) {
+        winston.error(`consultarReunionesRecientes - Excepción: ${ex.message} | idUsuario=${idUsuario}`);
+        throw ex;
+    }
+}
+
+/**
  * SP_GESTIONAR_ACUERDO — módulo 1, las cuatro acciones de escritura.
  *
  * SP_GESTIONAR_ACUERDO( _accion, _idAcuerdo, _idUnidadResponsable, _idTema,
@@ -1199,6 +1232,7 @@ module.exports = {
     obtenerCatalogos,
     consultarAcuerdos,
     consultarAcuerdosPorMovimiento,
+    consultarReunionesRecientes,
     gestionarAcuerdo,
     gestionarCelebracion,
     consultarAgenda,

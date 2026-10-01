@@ -196,6 +196,37 @@ async function consultarAcuerdosPorMovimiento(req, res) {
 }
 
 /**
+ * Las reuniones más recientes, por acuerdo — «Lo reciente» del tablero.
+ *
+ * Solo lee. El alcance lo resuelve el SP con el idUsuario del token: los roles
+ * 8 y 9 reciben su dirección y nada más.
+ */
+async function consultarReunionesRecientes(req, res) {
+    try {
+        const ejecutor = await resolverEjecutor(req);
+        if (!ejecutor) return sesionInvalida(res);
+
+        const postData = req.body || {};
+        const data = await acuerdoDrhDAO.consultarReunionesRecientes(
+            postData, ejecutor.idUsuario);
+
+        if (data.rechazo) {
+            winston.warn(`[Controller] consultarReunionesRecientes rechazo: ${data.rechazo.message} | usuario=${ejecutor.idUsuario}`);
+            return sp.responder(res, data.rechazo, () => []);
+        }
+
+        return res.status(200).json({
+            status: 200,
+            message: "Consulta de reuniones recientes exitosa.",
+            model: data.acuerdos
+        });
+    } catch (ex) {
+        winston.error(`[Controller] consultarReunionesRecientes excepción: ${ex.message}`);
+        res.status(500).json(utils.errorGenerico(ex));
+    }
+}
+
+/**
  * Forma común del `model` de respuesta para las cuatro acciones de escritura.
  *
  * `idAcuerdoOrigen` solo trae valor en REABRIR modo NUEVO: es el acuerdo
@@ -1065,6 +1096,7 @@ module.exports = {
     consultarCatalogos,
     consultarAcuerdos,
     consultarAcuerdosPorMovimiento,
+    consultarReunionesRecientes,
     consultarDashboard,
     consultarHistorial,
     consultarAdscripciones,
