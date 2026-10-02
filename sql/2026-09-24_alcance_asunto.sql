@@ -14,6 +14,7 @@
 --   · un asunto admite varios alcances, y un alcance puede tener el suyo
 --     (cadena) — por eso hay control de ciclos
 --   · se puede desvincular, y queda en la bitácora
+--   · un asunto admite como máximo 5 alcances colgando de él
 --
 -- ESTRUCTURA: se sigue el patrón que ya usa SADRH en este mismo sistema
 -- —un solo procedimiento con parámetro de acción, como
@@ -76,11 +77,13 @@ DEALLOCATE PREPARE stmt;
 DROP PROCEDURE IF EXISTS SP_BUSCAR_ASUNTOS;
 DELIMITER $$
 CREATE PROCEDURE SP_BUSCAR_ASUNTOS (
-    IN _termino   VARCHAR(255),
-    IN _idExcluir BIGINT,
-    IN _limite    INT
+    IN _termino                VARCHAR(255),
+    IN _idExcluir              BIGINT,
+    IN _idsExcluir             VARCHAR(500),
+    IN _idUnidadAdministrativa INT,
+    IN _limite                 INT
 )
-COMMENT 'Busca asuntos por oficio, descripción, volante o folio. Autor: Benilde Rodríguez, 2026-09-24.'
+COMMENT 'Busca asuntos por oficio, descripción, volante o folio, dentro de una unidad. Autor: Benilde Rodríguez, 2026-09-24.'
 BEGIN
     -- La intercalación va explícita porque esta tabla las tiene mezcladas:
     -- noOficio es utf8mb4_0900_ai_ci y descripcionAsunto, folio y
@@ -92,6 +95,7 @@ BEGIN
     SET _termino = NULLIF(TRIM(IFNULL(_termino, '')), '');
     SET _limite  = IFNULL(NULLIF(_limite, 0), 50);
     SET _patron  = CONCAT('%', _termino, '%');
+    SET _idUnidadAdministrativa = IFNULL(_idUnidadAdministrativa, 0);
 
     IF _termino IS NULL THEN
         SELECT 100 AS status, 'Escribe algo para buscar.' AS message;
@@ -109,6 +113,16 @@ BEGIN
           FROM scg_tbl_asunto a
          WHERE IFNULL(a.activo, 1) = 1
            AND (_idExcluir IS NULL OR a.idAsunto <> _idExcluir)
+           -- Los que ya estan enlazados con este asunto no se vuelven a
+           -- ofrecer: elegirlos no haria nada o moveria un enlace existente
+           -- sin que quien busca lo note. Llegan como lista separada por comas.
+           AND (_idsExcluir IS NULL OR _idsExcluir = ''
+                OR NOT FIND_IN_SET(a.idAsunto, _idsExcluir))
+           -- Mismo criterio que SP_CONSULTAR_ASUNTOS_REGISTRADOS_UR: un 0 no
+           -- filtra. Asi el buscador y la lista nunca muestran cosas distintas.
+           AND a.idUnidadAdministrativa = CASE WHEN _idUnidadAdministrativa <> 0
+                                               THEN _idUnidadAdministrativa
+                                               ELSE a.idUnidadAdministrativa END
            AND (   a.noOficio          COLLATE utf8mb4_unicode_ci LIKE _patron
                 OR a.descripcionAsunto COLLATE utf8mb4_unicode_ci LIKE _patron
                 OR a.numeroVolante     COLLATE utf8mb4_unicode_ci LIKE _patron
@@ -147,6 +161,7 @@ BEGIN
     DECLARE _status        VARCHAR(255) DEFAULT NULL;
     DECLARE _origenPrevio  BIGINT DEFAULT NULL;
     DECLARE _hayCiclo      INT DEFAULT 0;
+    DECLARE _cuantos       INT DEFAULT 0;
     DECLARE _cursor        BIGINT DEFAULT NULL;
     DECLARE _saltos        INT DEFAULT 0;
     DECLARE _antes         TEXT DEFAULT NULL;
@@ -203,6 +218,14 @@ BEGIN
             SELECT COUNT(*) INTO _existeOrigen
               FROM scg_tbl_asunto
              WHERE idAsunto = _idAsuntoOrigen AND IFNULL(activo, 1) = 1;
+
+            -- Cuantos alcances cuelgan ya de ese origen. Se excluye este
+            -- asunto para que reenlazarlo al mismo origen no cuente doble.
+            SELECT COUNT(*) INTO _cuantos
+              FROM scg_tbl_asunto
+             WHERE idAsuntoOrigen = _idAsuntoOrigen
+               AND idAsunto <> _idAsunto
+               AND IFNULL(activo, 1) = 1;
         END IF;
 
         SELECT idUsuarioRol,
@@ -247,6 +270,11 @@ BEGIN
         ELSEIF _hayCiclo = 1 THEN
             SELECT 409 AS status,
                    'Ese asunto ya proviene de este, y enlazarlos cerraría un círculo.' AS message;
+
+        -- Tope de alcances por asunto. Si esto cambia, es la única línea.
+        ELSEIF _idAsuntoOrigen IS NOT NULL AND _cuantos >= 5 THEN
+            SELECT 409 AS status,
+                   'Ese asunto ya tiene 5 alcances, que es el máximo permitido.' AS message;
 
         ELSE
             SELECT folio, statusAsunto, idAsuntoOrigen

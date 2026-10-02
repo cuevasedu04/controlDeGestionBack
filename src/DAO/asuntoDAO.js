@@ -347,9 +347,16 @@ async function reemplazarDocumento(postData) {
             };
         }
 
+        // El archivo anterior se conserva, asi que el nuevo no puede pisarlo:
+        // si trae el mismo nombre —lo normal al corregir un oficio— entra
+        // como «nombre (1).pdf» y el viejo se queda intacto con su ruta, que
+        // es la que su fila sigue apuntando.
+        const rutaFinal = utils.rutaLibre(`${directorioAsunto}/${postData.documento.fileName}`);
+        const nombreFinal = path.basename(rutaFinal);
+
         const finalFileDocPrincipal = {
-            fileName: `${directorioAsunto}/${postData.documento.fileName}`,
-            fileNameBd: `${directoryBd}/${postData.documento.fileName}`,
+            fileName: rutaFinal,
+            fileNameBd: `${directoryBd}/${nombreFinal}`,
             base64: Buffer.from(postData.documento.fileEncode64, 'base64')
         };
 
@@ -381,7 +388,12 @@ async function reemplazarDocumento(postData) {
             response = resultFileBD3[0][0];
             if (response.status == 200 && postData.urlReemplazo) {
                 if (postData.urlReemplazo !== finalFileDocPrincipal.fileNameBd) {
-                    await utils.unlinkFile(postData.urlReemplazo);
+                    // El archivo del documento reemplazado SE CONSERVA a proposito.
+                    // Su fila queda con activo = 0, asi que desaparece de la
+                    // pantalla y quien reemplaza no se entera; pero el PDF sigue
+                    // en disco y el expediente se puede reconstruir.
+                    // Antes aqui habia un unlinkFile que lo borraba sin vuelta atras.
+                    // await utils.unlinkFile(postData.urlReemplazo);
                 }
             }
         } else {
@@ -794,12 +806,16 @@ async function buscarAsuntos(postData) {
     try {
 
         let sql = `CALL SP_BUSCAR_ASUNTOS (
-            ?, ?, ?
+            ?, ?, ?, ?, ?
         )`;
 
         let result = await db.query(sql, [
             postData.termino,
             postData.idExcluir || null,
+            // Lista separada por comas de los que ya estan enlazados.
+            Array.isArray(postData.idsExcluir) ? postData.idsExcluir.join(',') : (postData.idsExcluir || ''),
+            // Un 0 no filtra, igual que en la lista de asuntos.
+            postData.idUnidadAdministrativa || 0,
             postData.limite || 50
         ]);
 
