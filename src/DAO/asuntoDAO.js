@@ -347,9 +347,16 @@ async function reemplazarDocumento(postData) {
             };
         }
 
+        // El archivo anterior se conserva, asi que el nuevo no puede pisarlo:
+        // si trae el mismo nombre —lo normal al corregir un oficio— entra
+        // como «nombre (1).pdf» y el viejo se queda intacto con su ruta, que
+        // es la que su fila sigue apuntando.
+        const rutaFinal = utils.rutaLibre(`${directorioAsunto}/${postData.documento.fileName}`);
+        const nombreFinal = path.basename(rutaFinal);
+
         const finalFileDocPrincipal = {
-            fileName: `${directorioAsunto}/${postData.documento.fileName}`,
-            fileNameBd: `${directoryBd}/${postData.documento.fileName}`,
+            fileName: rutaFinal,
+            fileNameBd: `${directoryBd}/${nombreFinal}`,
             base64: Buffer.from(postData.documento.fileEncode64, 'base64')
         };
 
@@ -381,7 +388,12 @@ async function reemplazarDocumento(postData) {
             response = resultFileBD3[0][0];
             if (response.status == 200 && postData.urlReemplazo) {
                 if (postData.urlReemplazo !== finalFileDocPrincipal.fileNameBd) {
-                    await utils.unlinkFile(postData.urlReemplazo);
+                    // El archivo del documento reemplazado SE CONSERVA a proposito.
+                    // Su fila queda con activo = 0, asi que desaparece de la
+                    // pantalla y quien reemplaza no se entera; pero el PDF sigue
+                    // en disco y el expediente se puede reconstruir.
+                    // Antes aqui habia un unlinkFile que lo borraba sin vuelta atras.
+                    // await utils.unlinkFile(postData.urlReemplazo);
                 }
             }
         } else {
@@ -484,7 +496,35 @@ async function agregarAnexos(postData) {
         };
     }
 }
+async function agregarAntecedentes(postData) {
+    let response = {};
+    try {
+        const directorioAntecedentes = path.resolve(`./src/documentos/Asuntos/Asunto-${postData.folio}/Antecedentes`);
+        utils.ensureDirectoryExistsSync(directorioAntecedentes);
+        const directoryBdAntecedentes = `documentos/Asuntos/Asunto-${postData.folio}/Antecedentes`;
 
+        if (Array.isArray(postData.antecedentes) && postData.antecedentes.length > 0) {
+            const antecedentesResult = await almacenaListaArchivos(
+                postData.antecedentes,
+                directorioAntecedentes,
+                directoryBdAntecedentes,
+                postData.idUsuarioRegistra,
+                postData.idAsunto
+            );
+            response = antecedentesResult[0];
+        } else {
+            response = [];
+        }
+
+        return response;
+    } catch (ex) {
+        console.error("Error al agregar los antecedentes:", ex);
+        return {
+            status: -1,
+            message: "Ocurrió un error interno, contactar a soporte técnico."
+        };
+    }
+}
 async function concluirAsunto(postData) {
     let response = {};
     const archivosGuardados = [];
@@ -596,6 +636,71 @@ async function editarAsunto(postData) {
     }
 }
 
+/**
+ * Edicion completa de la informacion general de un asunto.
+ *
+ * Hermana de editarAsunto, no su reemplazo: el SP viejo se queda intacto.
+ * Este llama a SP_EDITAR_ASUNTO_COMPLETO, que ademas de guardar
+ * dirigidoADependencia -que el viejo perdia- deja rastro en la bitacora.
+ *
+ * Quien puede editar lo decide el SP, no este DAO: hoy los roles 1 y 2.
+ */
+async function editarAsuntoCompleto(postData) {
+    let response = {};
+    try {
+        if (!postData.idUsuarioModifica) {
+            winston.warn(`editarAsuntoCompleto - Intento con idUsuarioModifica nulo | asunto: ${postData.idAsunto}`);
+            return { status: 400, message: 'Sesion de usuario no valida. Por favor recarga la pagina e intenta de nuevo.' };
+        }
+
+        let sql = `CALL SP_EDITAR_ASUNTO_COMPLETO (
+            ?,?,?,?,?,
+            ?,?,?,?,?,
+            ?,?,?,?,?,
+            ?,?,?,?,?,
+            ?,?,?
+        )`;
+
+        let result = await db.query(sql, [
+            postData.idAsunto,
+            postData.idTipoDocumento,
+            postData.noOficio,
+            postData.esVolante,
+            postData.numeroVolante,
+            postData.esGuia,
+            postData.numeroGuia,
+            sanitizarFecha(postData.fechaDocumento),
+            sanitizarFecha(postData.fechaRecepcion),
+            postData.remitenteNombre,
+            postData.remitenteCargo,
+            postData.remitenteDependencia,
+            postData.dirigidoA,
+            postData.dirigidoACargo,
+            postData.dirigidoADependencia,
+            postData.descripcionAsunto,
+            postData.idTema,
+            sanitizarFecha(postData.fechaCumplimiento),
+            postData.idMedio,
+            postData.idPrioridad,
+            postData.observaciones,
+            postData.idUsuarioModifica,
+            postData.ipOrigen
+        ]);
+
+        response = JSON.parse(JSON.stringify(result[0][0]));
+
+        if (response.status == 200) {
+            response.model = JSON.parse(JSON.stringify(result[1][0]));
+        } else {
+            winston.warn(`editarAsuntoCompleto - ${response.status} | ${response.message} | asunto=${postData.idAsunto} | usuario=${postData.idUsuarioModifica}`);
+        }
+        return response;
+    } catch (ex) {
+        winston.error(`editarAsuntoCompleto - Excepcion: ${ex.message} | asunto=${postData.idAsunto}`);
+        throw ex;
+    }
+}
+
 async function cancelarAsunto(postData) {
     let response = {};
     try {
@@ -689,6 +794,93 @@ async function consultarComentariosDocumentos(postData) {
     }
 }
 
+/**
+ * Buscador de asuntos para el modal del alcance: oficio, descripcion,
+ * volante o folio.
+ *
+ * Busca en el servidor y no en el navegador porque la tabla ronda los 6,700
+ * asuntos y el modal no necesita traerlos todos.
+ */
+async function buscarAsuntos(postData) {
+    let response = {};
+    try {
+
+        let sql = `CALL SP_BUSCAR_ASUNTOS (
+            ?, ?, ?, ?, ?
+        )`;
+
+        let result = await db.query(sql, [
+            postData.termino,
+            postData.idExcluir || null,
+            // Lista separada por comas de los que ya estan enlazados.
+            Array.isArray(postData.idsExcluir) ? postData.idsExcluir.join(',') : (postData.idsExcluir || ''),
+            // Un 0 no filtra, igual que en la lista de asuntos.
+            postData.idUnidadAdministrativa || 0,
+            postData.limite || 50
+        ]);
+
+        response = JSON.parse(JSON.stringify(result[0][0]));
+
+        if (response.status == 200) {
+            response.model = JSON.parse(JSON.stringify(result[1]));
+        }
+        return response;
+    } catch (ex) {
+        throw ex;
+    }
+}
+
+/**
+ * Alcance entre asuntos, en un solo procedimiento con parametro de accion
+ * —el patron que ya usa SADRH con SP_GESTIONAR_ACUERDO—.
+ *
+ *   CONSULTAR    devuelve las dos direcciones: de donde viene y que lo continua
+ *   VINCULAR     enlaza este asunto con su origen
+ *   DESVINCULAR  quita el enlace
+ *
+ * Quien puede escribir lo decide el SP, no este DAO: hoy los roles 1 y 2.
+ */
+async function gestionarAlcance(postData) {
+    let response = {};
+    try {
+        const accion = String(postData.accion || '').toUpperCase();
+
+        if (accion !== 'CONSULTAR' && !postData.idUsuario) {
+            winston.warn(`gestionarAlcance ${accion} - Intento con idUsuario nulo | asunto: ${postData.idAsunto}`);
+            return { status: 400, message: 'Sesion de usuario no valida. Por favor recarga la pagina e intenta de nuevo.' };
+        }
+
+        let sql = `CALL SP_GESTIONAR_ALCANCE (
+            ?, ?, ?, ?, ?
+        )`;
+
+        let result = await db.query(sql, [
+            accion,
+            postData.idAsunto,
+            postData.idAsuntoOrigen || null,
+            postData.idUsuario,
+            postData.ipOrigen
+        ]);
+
+        response = JSON.parse(JSON.stringify(result[0][0]));
+
+        if (response.status == 200 && accion === 'CONSULTAR') {
+            // El SP responde las dos direcciones por separado para que la
+            // pantalla no tenga que deducir cual es cual.
+            response.model = {
+                origen: JSON.parse(JSON.stringify(result[1]))[0] || null,
+                alcances: JSON.parse(JSON.stringify(result[2]))
+            };
+        } else if (response.status != 200) {
+            winston.warn(`gestionarAlcance ${accion} - ${response.status} | ${response.message} | asunto=${postData.idAsunto}`);
+        }
+        return response;
+    } catch (ex) {
+        winston.error(`gestionarAlcance - Excepcion: ${ex.message} | asunto=${postData.idAsunto}`);
+        throw ex;
+    }
+}
+
 module.exports = {
     registrarAsunto,
     consultarAsuntosUR,
@@ -704,8 +896,12 @@ module.exports = {
     cancelarAsunto,
     consultarHistorial,
     obtenerIdTurnadosPermitidos,
+    agregarAntecedentes,
     guardarComentarioDocumento,
-    consultarComentariosDocumentos
+    consultarComentariosDocumentos,
+    editarAsuntoCompleto,
+    buscarAsuntos,
+    gestionarAlcance
 
 }
 async function almacenaListaArchivos(list, directorioAnexos, directoryBd, idUsuarioRegistra, idAsunto) {

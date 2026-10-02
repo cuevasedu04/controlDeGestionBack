@@ -289,7 +289,48 @@ function unlinkFile(ruta){
     
 }
 
+/**
+ * Devuelve una ruta libre: si el archivo ya existe, le agrega (1), (2)...
+ *
+ * Hace falta al reemplazar un documento. El reemplazo conserva el archivo
+ * anterior a proposito —su fila queda con activo = 0 pero el PDF sigue en
+ * disco—, y si el nuevo trae el mismo nombre lo pisaria, que es justo lo que
+ * se quiere evitar. Corregir un oficio sin cambiarle el nombre es lo normal.
+ */
+function rutaLibre(rutaDeseada) {
+    if (!fs.existsSync(rutaDeseada)) return rutaDeseada;
+
+    const dir = path.dirname(rutaDeseada);
+    const ext = path.extname(rutaDeseada);
+    const base = path.basename(rutaDeseada, ext);
+
+    for (let n = 1; n < 1000; n++) {
+        const intento = path.join(dir, `${base} (${n})${ext}`);
+        if (!fs.existsSync(intento)) return intento;
+    }
+    return path.join(dir, `${base} (${Date.now()})${ext}`);
+}
+
 async function writeFile(finalFile) {
+    // Un archivo NUNCA pisa a otro.
+    //
+    // Antes, subir un documento cuyo nombre ya existia creaba la fila nueva
+    // y sobrescribia el PDF anterior: quedaban dos registros apuntando al
+    // mismo archivo y uno mostraba un documento ajeno, sin ningun error.
+    //
+    // Rechazar aqui es seguro porque quien llama ya comprueba el status
+    // antes de registrar la fila: si no se escribio, no se registra nada.
+    // Donde SI se quieren conservar los dos —el reemplazo del documento
+    // principal— se pide antes una ruta libre con rutaLibre().
+    if (fs.existsSync(finalFile.fileName)) {
+        const nombre = path.basename(finalFile.fileName);
+        winston.warn(`writeFile - nombre ya ocupado, no se sobrescribe: ${finalFile.fileName}`);
+        return {
+            status: 409,
+            message: `Ya existe un documento llamado «${nombre}» en este expediente. Cámbiale el nombre o elimina el anterior.`
+        };
+    }
+
     return new Promise((resolve, reject) => {
         fs.writeFile(finalFile.fileName, finalFile.base64, 'base64', (err) => {
             if (err) {
@@ -386,6 +427,7 @@ function zipVacio(res) {
 
 
 module.exports = {
+    rutaLibre,
     postDataInvalido,
     errorGenerico,
     encriptarContrasena,

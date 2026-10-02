@@ -99,6 +99,15 @@ async function agregarAnexos(req, res) {
         res.status(500).json(utils.errorGenerico(ex));
     }
 }
+async function agregarAntecedentes(req, res) {
+    try {
+        const postData = req.body;
+            let data = await asuntoDAO.agregarAntecedentes(postData);
+            return res.status(200).json(data);
+    } catch (ex) {
+        res.status(500).json(utils.errorGenerico(ex));
+    }
+}
 async function eliminarDocumento(req, res) {
     try {
         const postData = req.body;
@@ -369,6 +378,50 @@ async function consultarComentariosDocumentos(req, res) {
     }
 }
 
+/**
+ * La IP real de quien pide, respetando el proxy si lo hay.
+ * Mismo criterio que usa el modulo de acuerdos, para que la bitacora
+ * guarde el dato igual en todo el sistema.
+ */
+function ipDe(req) {
+    const cabecera = req.headers['x-forwarded-for'];
+    const ip = (cabecera ? String(cabecera).split(',')[0] : null)
+        || req.ip
+        || (req.connection && req.connection.remoteAddress)
+        || '127.0.0.1';
+    return String(ip).replace('::ffff:', '').substring(0, 45);
+}
+
+async function editarAsuntoCompleto(req, res) {
+    try {
+        const postData = req.body;
+            let data = await asuntoDAO.editarAsuntoCompleto({ ...postData, ipOrigen: ipDe(req) });
+            return res.status(200).json(data);
+    } catch (ex) {
+        res.status(500).json(utils.errorGenerico(ex));
+    }
+}
+
+async function buscarAsuntos(req, res) {
+    try {
+        const postData = req.body;
+            let data = await asuntoDAO.buscarAsuntos(postData);
+            return res.status(200).json(data);
+    } catch (ex) {
+        res.status(500).json(utils.errorGenerico(ex));
+    }
+}
+
+async function gestionarAlcance(req, res) {
+    try {
+        const postData = req.body;
+            let data = await asuntoDAO.gestionarAlcance({ ...postData, ipOrigen: ipDe(req) });
+            return res.status(200).json(data);
+    } catch (ex) {
+        res.status(500).json(utils.errorGenerico(ex));
+    }
+}
+
 module.exports = {
     registrarAsunto,
     consultarAsuntosUR,
@@ -378,6 +431,7 @@ module.exports = {
     turnarAsunto,
     reemplazarDocumento,
     agregarAnexos,
+    agregarAntecedentes,
     eliminarDocumento,
     concluirAsunto,
     editarAsunto,
@@ -388,5 +442,8 @@ module.exports = {
     listarDocumentos,
     cancelarAsunto,
     guardarComentarioDocumento,
-    consultarComentariosDocumentos
+    consultarComentariosDocumentos,
+    editarAsuntoCompleto,
+    buscarAsuntos,
+    gestionarAlcance
 }

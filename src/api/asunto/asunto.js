@@ -11,6 +11,7 @@ router.post("/consultarTurnados", token.validateToken, controller.consultarTurna
 router.post("/turnarAsunto", token.validateToken, controller.turnarAsunto);
 router.post("/reemplazarDocumento", token.validateToken, controller.reemplazarDocumento);
 router.post("/agregarAnexos", token.validateToken, controller.agregarAnexos);
+router.post("/agregarAntecedentes", token.validateToken, controller.agregarAntecedentes);
 router.post("/eliminarDocumento", token.validateToken, controller.eliminarDocumento);
 router.post("/concluirAsunto", token.validateToken, controller.concluirAsunto);
 router.post("/editarAsunto", token.validateToken, controller.editarAsunto);
@@ -22,6 +23,9 @@ router.post("/listarDocumentos", token.validateToken, controller.listarDocumento
 router.post("/cancelarAsunto", token.validateToken, controller.cancelarAsunto);
 router.post("/guardarComentarioDocumento", token.validateToken, controller.guardarComentarioDocumento);
 router.post("/consultarComentariosDocumentos", token.validateToken, controller.consultarComentariosDocumentos);
+router.post("/editarAsuntoCompleto", token.validateToken, controller.editarAsuntoCompleto);
+router.post("/buscarAsuntos", token.validateToken, controller.buscarAsuntos);
+router.post("/gestionarAlcance", token.validateToken, controller.gestionarAlcance);
 
 module.exports = router;
 
